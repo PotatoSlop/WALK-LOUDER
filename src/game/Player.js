@@ -7,7 +7,7 @@ const VOICE_STEP_MAX = 9.0;  // yelled word
 const VOICE_FRICTION = 0.80; // how quickly the burst decays on the ground
 
 // Keyboard continuous: vx held while key is down, scaled by live volume
-const KBD_SPEED_MIN = 1.5;
+const KBD_SPEED_MIN = 0.3;
 const KBD_SPEED_MAX = 7.0;
 const KBD_FRICTION  = 0.72;
 
@@ -29,7 +29,7 @@ export class Player {
   }
 
   update(input, world) {
-    // ── Horizontal ──────────────────────────────────────────────────────────
+    // Horizontal 
     if (input.impulse.dx !== 0) {
       this.facing = input.impulse.dx;
 
@@ -42,31 +42,29 @@ export class Player {
       }
     } else {
       // No input this frame: coast to stop
-      const friction = this.onGround
-        ? (input.continuous ? KBD_FRICTION : VOICE_FRICTION)
-        : AIR_DAMPING;
+      const friction = this.onGround ? (input.continuous ? KBD_FRICTION : VOICE_FRICTION) : AIR_DAMPING;
       this.vx *= friction;
       if (Math.abs(this.vx) < 0.08) this.vx = 0;
     }
 
-    // ── Jump ────────────────────────────────────────────────────────────────
+    // Jump
     if (input.impulse.jump && this.onGround) {
       this.vy = -(JUMP_MIN + (JUMP_MAX - JUMP_MIN) * input.impulse.mag);
       this.onGround = false;
     }
 
-    // ── Gravity ─────────────────────────────────────────────────────────────
+    // Gravity 
     this.vy = Math.min(this.vy + GRAVITY, MAX_FALL);
 
-    // ── Integrate ───────────────────────────────────────────────────────────
+    // Integrate 
     this.x += this.vx;
     this.y += this.vy;
 
-    // ── Collisions ──────────────────────────────────────────────────────────
+    // Collisions 
     this.onGround = false;
     for (const p of world.platforms) this._resolve(p);
 
-    // ── World bounds ─────────────────────────────────────────────────────────
+    // World bounds 
     this.x = Math.max(0, Math.min(world.w - this.w, this.x));
     if (this.y > world.h + 60) this.dead = true;
   }
@@ -108,11 +106,5 @@ export class Player {
     const eyeOffX = this.facing === 1 ? this.w - 5 : 3;
     ctx.fillStyle = '#000';
     ctx.fillRect(px + eyeOffX, py + 8, 3, 3);
-
-    // Legs — alternate based on horizontal position for walk cycle feel
-    const legOffset = Math.abs(this.vx) > 0.5 ? Math.round(this.x * 0.5) % 2 : 0;
-    ctx.fillStyle = '#1a8c1a';
-    ctx.fillRect(px + 2,          py + this.h - 4, 4, 4 + legOffset);
-    ctx.fillRect(px + this.w - 6, py + this.h - 4, 4, 4 - legOffset);
   }
 }

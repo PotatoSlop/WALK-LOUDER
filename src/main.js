@@ -1,6 +1,5 @@
 import { AudioEngine } from './audio/AudioEngine.js';
 import { Calibrator } from './audio/Calibrator.js';
-import { KeywordDetector } from './audio/KeywordDetector.js';
 import { InputManager } from './input/InputManager.js';
 import { Player } from './game/Player.js';
 import { World } from './game/World.js';
@@ -28,12 +27,11 @@ applyScale();
 window.addEventListener('resize', applyScale);
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
-let audio    = null;
-let keywords = null;
-let input    = null;
-let player   = null;
-let world    = null;
-let overlay  = null;
+let audio   = null;
+let input   = null;
+let player  = null;
+let world   = null;
+let overlay = null;
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 async function bootstrap() {
@@ -59,31 +57,12 @@ async function bootstrap() {
   cal.onStateChange = (_state, msg) => overlay.setStatus(msg);
   await cal.run();
 
-  // 4. Load TF.js speech-commands model (keyboard fallback if it fails/times out)
-  overlay.setStatus('loading voice model...');
-  input = new InputManager();
-  keywords = new KeywordDetector();
-  let voiceAvailable = false;
-  try {
-    await keywords.init();
-    overlay.kwd = keywords;
-    keywords.on('left',  () => { const m = audio.peakVolume; input.onKeyword('left',  m); overlay?.notifyKeyword('left',  m); });
-    keywords.on('right', () => { const m = audio.peakVolume; input.onKeyword('right', m); overlay?.notifyKeyword('right', m); });
-    keywords.on('up',    () => { const m = audio.peakVolume; input.onKeyword('up',    m); overlay?.notifyKeyword('up',    m); });
-    keywords.on('down',  () => { const m = audio.peakVolume; input.onKeyword('down',  m); overlay?.notifyKeyword('down',  m); });
-    keywords.start();
-    voiceAvailable = true;
-  } catch (err) {
-    console.warn('[kwd] voice model unavailable:', err.message);
-    input.setMode('keyboard');
-    overlay.setStatus('voice unavailable — keyboard mode (WASD)');
-  }
-
-  // 6. Build world and spawn player
+  // 4. Build world, input, and spawn player
+  input  = new InputManager();
   world  = new World(INTERNAL_W, INTERNAL_H);
   player = new Player(40, INTERNAL_H - 18 - 24);
 
-  overlay.setStatus(voiceAvailable ? 'ready — speak to play' : 'WASD to move  |  K = voice when ready');
+  overlay.setStatus('WASD / arrows to move  |  be loud to go fast');
 }
 
 // ─── Render loop ─────────────────────────────────────────────────────────────
@@ -169,14 +148,11 @@ function waitForKey(key) {
   });
 }
 
+const GAME_KEYS = new Set(['KeyA','KeyD','KeyW','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space']);
+
 window.addEventListener('keydown', e => {
-  if ((e.key === 'd' || e.key === 'D') && overlay) overlay.toggle();
-  // K — toggle keyboard / voice mode
-  if ((e.key === 'k' || e.key === 'K') && input) {
-    const next = input.mode === 'voice' ? 'keyboard' : 'voice';
-    input.setMode(next);
-    overlay?.setStatus(`mode: ${next}`);
-  }
+  if (GAME_KEYS.has(e.code)) e.preventDefault();
+  if (e.code === 'Backquote' && overlay) overlay.toggle();
 });
 
 bootstrap();

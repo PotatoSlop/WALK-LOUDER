@@ -1,5 +1,5 @@
 const FFT_SIZE = 256;
-const SMOOTHING = 0.8;
+const SMOOTHING = 0.5;
 const JUMP_SPIKE_THRESHOLD = 0.35; // normalized volume rise in one frame to trigger jump
 
 export class AudioEngine {

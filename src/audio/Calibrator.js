@@ -9,10 +9,10 @@ export class Calibrator {
   }
 
   async run() {
-    this._set('noise', 'be quiet (3s)');
+    this._countdown('noise', `be quiet`);
     const floor = await this._sample(PHASE_MS, 'max');
 
-    this._set('peak', 'TALK LOUD (3s)');
+    this._countdown('peak', 'SCREAM');
     const peak = await this._sample(PHASE_MS, 'max');
 
     // If peak isn't meaningfully above floor, fall back to safe defaults
@@ -26,12 +26,12 @@ export class Calibrator {
   _sample(durationMs, mode) {
     return new Promise(resolve => {
       const samples = [];
-      const count = Math.floor(durationMs / TICK_MS);
+      const sample_count = Math.floor(durationMs / TICK_MS);
       let i = 0;
 
       const id = setInterval(() => {
         samples.push(this.audio.rawRMS);
-        if (++i >= count) {
+        if (++i >= sample_count) {
           clearInterval(id);
           const val = mode === 'max'
             ? Math.max(...samples)
@@ -40,6 +40,20 @@ export class Calibrator {
         }
       }, TICK_MS);
     });
+  }
+
+  _countdown(measure, label) {
+    let secs = Math.trunc(PHASE_MS / 1000);
+    this._set(measure, `${label} ${secs}s`);
+    const id = setInterval(() => {
+      secs--;
+      if (secs > 0) {
+        this._set(measure, `${label} ${secs}s`)
+      }
+      else {
+        clearInterval(id);
+      }
+    }, 1000)
   }
 
   _set(state, message) {
