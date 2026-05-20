@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {OBJECT_TYPES} from '../config/objectTypes';
 import {Player} from '../objects/player';
+import {micInput} from '../systems/MicInput';
 
 export class GameScene extends Phaser.Scene {
 
@@ -12,6 +13,7 @@ export class GameScene extends Phaser.Scene {
     hazardGroup: any;
     doorGroup: any;
     itemGroup: any;
+    mic: any;
 
     constructor() {
         super({key: 'main'});
@@ -21,7 +23,12 @@ export class GameScene extends Phaser.Scene {
         this.load.json('map', 'assets/data/levels/level-01.json');
     }
 
-    create() {
+    async create() {
+        this.mic = new micInput();
+        await this.mic.init();
+        await this.mic.calibrateNoise();
+        await this.mic.calibratePeak();
+
         const ground = this.add.rectangle(400, 575, 800, 50, OBJECT_TYPES.ground.color);
         this.physics.add.existing(ground, true);
 
@@ -42,15 +49,18 @@ export class GameScene extends Phaser.Scene {
         this.physics.add.collider(this.player, platform);
         
         this.cursors = this.input.keyboard!.createCursorKeys();
+        
 
     }
 
     update() {
+        const vol = this.mic.getNormalizedVolume();
+
         if (this.cursors.left.isDown) {
-            this.player.moveLeft();
+            this.player.moveLeft(vol);
         }
         else if (this.cursors.right.isDown) {
-            this.player.moveRight();
+            this.player.moveRight(vol);
         }
         else {
             this.player.setSpeedMultiplier(0.8);
@@ -65,6 +75,9 @@ export class GameScene extends Phaser.Scene {
         if (this.cursors.up.isUp && this.player.Body.velocity.y < 0) {
             this.player.Body.setVelocityY(this.player.Body.velocity.y * 0.85);
         }
+
+        
+
 
     }
 

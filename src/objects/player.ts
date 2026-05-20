@@ -5,7 +5,7 @@ export class Player extends Phaser.GameObjects.Rectangle {
     isJumping: boolean = false;
     isFalling: boolean = false;
     items: string[] = [];
-    Body: Phaser.Physics.Arcade.Body;
+    Body!: Phaser.Physics.Arcade.Body;
  
 
     constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -16,15 +16,16 @@ export class Player extends Phaser.GameObjects.Rectangle {
         this.Body.setDragY(100);
     }
 
-    moveLeft() {
+    moveLeft(volume: number) {
         this.facing = 'left';
-        this.Body.setVelocityX(-180);
-
+        const speed = 100 + volume * 300;
+        this.Body.setVelocityX(speed);
     }
 
-    moveRight() {
+    moveRight(volume: number) {
         this.facing = 'right';
-        this.Body.setVelocityX(180);
+        const speed = 100 + volume * 300;
+        this.Body.setVelocityX(speed);
     }
 
     jump() {

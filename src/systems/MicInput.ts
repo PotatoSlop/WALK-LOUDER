@@ -54,11 +54,11 @@ export class micInput {
         return samples;
     }
 
-    private normalizeVolume(): number {
+    getNormalizedVolume(): number {
         const rawVolume = this.getVolume();
         return Math.max(0, Math.min(1, (rawVolume - this.noiseFloor) / (this.noiseCeiling - this.noiseFloor)));
     }
-    
+
     async calibrateNoise(): Promise<void> {
         const samples = await this.collectSamples();
         const sum = samples.reduce((acc, val) => acc + val, 0);
