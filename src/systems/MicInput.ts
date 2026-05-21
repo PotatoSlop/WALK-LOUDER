@@ -10,7 +10,7 @@ async function getMicAccess(): Promise<MediaStream | null> {
 
 const SAMPLE_DURATION = 3000 //ms
 const SAMPLE_INTERVAL = 16 // approx 60 samples per second
-const PEAK_SAMPLE_SIZE = 0.1 // Take the 90th percentile as the peak
+const PEAK_SAMPLE_SIZE = 0.2 // Take the 80th percentile as the peak
 
 export class micInput {
     audioContext: AudioContext;
@@ -19,6 +19,8 @@ export class micInput {
     stream: MediaStream | null;
     noiseFloor: number = 0;
     noiseCeiling: number = 1;
+    calibrationPhase: 'idle' | 'noise' | 'peak' | 'done' = 'idle';
+    calibrationStartTime: number = 0;
 
     constructor() {
         this.audioContext = new AudioContext();
@@ -55,20 +57,27 @@ export class micInput {
     }
 
     getNormalizedVolume(): number {
+        const range = this.noiseCeiling - this.noiseFloor;
+        if (range <= 0) return 0;
         const rawVolume = this.getVolume();
-        return Math.max(0, Math.min(1, (rawVolume - this.noiseFloor) / (this.noiseCeiling - this.noiseFloor)));
+        return Math.max(0, (rawVolume - this.noiseFloor) / range);
     }
 
     async calibrateNoise(): Promise<void> {
+        this.calibrationPhase = 'noise';
+        this.calibrationStartTime = performance.now();
         const samples = await this.collectSamples();
         const sum = samples.reduce((acc, val) => acc + val, 0);
         this.noiseFloor = sum / samples.length;
     }
 
     async calibratePeak(): Promise<void> {
+        this.calibrationPhase = 'peak';
+        this.calibrationStartTime = performance.now();
         const samples = await this.collectSamples();
         const sorted = samples.sort((a,b) => b - a);
         this.noiseCeiling = sorted[Math.floor(samples.length * PEAK_SAMPLE_SIZE)];
+        this.calibrationPhase = 'done';
     }
 }
 

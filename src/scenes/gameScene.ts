@@ -23,12 +23,7 @@ export class GameScene extends Phaser.Scene {
         this.load.json('map', 'assets/data/levels/level-01.json');
     }
 
-    async create() {
-        this.mic = new micInput();
-        await this.mic.init();
-        await this.mic.calibrateNoise();
-        await this.mic.calibratePeak();
-
+    create() {
         const ground = this.add.rectangle(400, 575, 800, 50, OBJECT_TYPES.ground.color);
         this.physics.add.existing(ground, true);
 
@@ -47,10 +42,17 @@ export class GameScene extends Phaser.Scene {
         this.player = new Player(this, 100, 500);
         this.physics.add.collider(this.player, ground);
         this.physics.add.collider(this.player, platform);
-        
-        this.cursors = this.input.keyboard!.createCursorKeys();
-        
 
+        this.cursors = this.input.keyboard!.createCursorKeys();
+
+        this.mic = new micInput();
+        this.mic.init().then(() => {
+            return this.mic.calibrateNoise();
+        }).then(() => {
+            return this.mic.calibratePeak();
+        });
+
+        this.scene.launch('debug');
     }
 
     update() {
@@ -68,11 +70,12 @@ export class GameScene extends Phaser.Scene {
 
         if (this.cursors.up.isDown) {
             this.player.jump();
-            console.log('jump');
         }
 
-        // in gameScene update()
-        if (this.cursors.up.isUp && this.player.Body.velocity.y < 0) {
+        this.player.applyVocalBoost(vol);
+
+        const boostOver = performance.now() - this.player.jumpTime > this.player.jumpBoostWindow;
+        if (this.cursors.up.isUp && this.player.Body.velocity.y < 0 && boostOver) {
             this.player.Body.setVelocityY(this.player.Body.velocity.y * 0.85);
         }
 
