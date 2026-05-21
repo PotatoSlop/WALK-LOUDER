@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {GameScene} from './scenes/gameScene';
 import {DebugScene} from './scenes/debugScene';
+import {CalibrationScene} from './scenes/calibrationScene';
 
 var config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
@@ -13,10 +14,8 @@ var config: Phaser.Types.Core.GameConfig = {
             debug: false
         }
     },
-    scene: [GameScene, DebugScene]
+    scene: [GameScene, DebugScene, CalibrationScene]
 };
-
-
 
 var game = new Phaser.Game(config);
 

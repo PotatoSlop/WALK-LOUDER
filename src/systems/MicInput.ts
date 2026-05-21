@@ -60,7 +60,7 @@ export class micInput {
         const range = this.noiseCeiling - this.noiseFloor;
         if (range <= 0) return 0;
         const rawVolume = this.getVolume();
-        return Math.max(0, (rawVolume - this.noiseFloor) / range);
+        return Math.min(1, Math.max(0, (rawVolume - this.noiseFloor) / range));
     }
 
     async calibrateNoise(): Promise<void> {

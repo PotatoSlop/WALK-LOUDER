@@ -1,46 +1,20 @@
 {
-  "ground": {
-    "position": { "x": 0, "y": 550 },
-    "size": { "width": 800, "height": 50 }
-  },
-  "platforms": [
-    {
-      "name": "platform-1",
-      "position": { "x": 80, "y": 430 },
-      "size": { "width": 180, "height": 20 }
-    },
-    {
-      "name": "platform-2",
-      "position": { "x": 350, "y": 320 },
-      "size": { "width": 160, "height": 20 }
-    }
+  "id": "level-01",
+  "spawn": { "x": 100, "y": 500 },
+  "objects": [
+    { "type": "ground",   "x": 400, "y": 575, "w": 800, "h": 50 },
+    { "type": "platform", "x": 400, "y": 400, "w": 200, "h": 20 },
+    { "type": "hazard",   "id": "hazard-01",        "x": 500, "y": 550, "w": 100, "h": 50 },
+    { "type": "hazard",   "id": "hazard-moving-01", "x": 300, "y": 350, "w": 100, "h": 20, "isStatic": false, "endPos": { "x": 600, "y": 350 }, "speed": 150 },
+    { "type": "key",      "x": 400, "y": 300, "w": 30, "h": 30, "keyType": "key-01" },
+    { "type": "switch",   "id": "button-01", "x": 250, "y": 535, "w": 50, "h": 30, "switchType": "button" },
+    { "type": "switch",   "id": "lever-01",  "x": 350, "y": 535, "w": 50, "h": 30, "switchType": "lever"  },
+    { "type": "door",     "x": 700, "y": 500, "w": 50, "h": 100, "isLocked": true, "keyType": "key-01", "targetLevel": "level-02" },
+    { "type": "movingPlatform", "x": 150, "y": 470, "w": 120, "h": 20, "endPos": { "x": 450, "y": 470 }, "speed": 100,
+      "attachedHazards": [{ "x": 30, "y": -20, "w": 40, "h": 20 }] }
   ],
-  "hazards": [
-    {
-      "name": "hazard-1",
-      "type": "spike",
-      "position": { "x": 270, "y": 530 },
-      "size": { "width": 80, "height": 20 }
-    },
-    {
-      "name": "hazard-2",
-      "type": "spike",
-      "position": { "x": 360, "y": 300 },
-      "size": { "width": 40, "height": 20 }
-    }
-  ],
-  "interactables": [
-    {
-      "type": "key",
-      "id": "key-main",
-      "position": { "x": 145, "y": 400 },
-      "size": { "width": 20, "height": 20 }
-    }
-  ],
-  "door": {
-    "position": { "x": 680, "y": 486 },
-    "size": { "width": 32, "height": 64 },
-    "leadsTo": 2,
-    "requiredKey": "key-main"
-  }
+  "links": [
+    { "objectId": "hazard-01",        "switchId": "button-01", "inverted": true },
+    { "objectId": "hazard-moving-01", "switchId": "lever-01",  "inverted": true }
+  ]
 }

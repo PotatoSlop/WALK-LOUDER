@@ -19,20 +19,12 @@ export class DebugScene extends Phaser.Scene {
         this.marker.setStrokeStyle(2, 0xff0000);
 
         const style: Phaser.Types.GameObjects.Text.TextStyle = {
+            font: 'press-start-2p',
             fontSize: '14px',
             color: '#ff0000',
             backgroundColor: '#000000aa',
             padding: { x: 6, y: 4 },
         };
-
-        const phaseStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-            fontSize: '20px',
-            color: '#ffff00',
-            backgroundColor: '#000000cc',
-            padding: { x: 10, y: 6 },
-            align: 'center',
-        };
-        this.phaseText = this.add.text(400, 300, '', phaseStyle).setOrigin(0.5);
 
         this.volText = this.add.text(8, 8, '', style);
         this.posText = this.add.text(8, 30, '', style);
@@ -69,22 +61,5 @@ export class DebugScene extends Phaser.Scene {
         this.calibrationText.setText(
             `range: ${range.toFixed(4)}${range <= 0 ? '  BAD (div by zero!)' : ''}`
         );
-
-        const phase = mic?.calibrationPhase ?? 'idle';
-        if (phase === 'noise' || phase === 'peak') {
-            const elapsed = performance.now() - (mic?.calibrationStartTime ?? 0);
-            const remaining = Math.max(0, (3000 - elapsed) / 1000);
-            const label = phase === 'noise'
-                ? 'CALIBRATING NOISE FLOOR (stay quiet)'
-                : 'CALIBRATING PEAK (make noise!)';
-            this.phaseText.setText(`${label}\n${remaining.toFixed(1)}s`);
-            this.phaseText.setVisible(true);
-        } else if (phase === 'done') {
-            this.phaseText.setText('CALIBRATION COMPLETE');
-            this.phaseText.setVisible(true);
-            this.time.delayedCall(1500, () => this.phaseText.setVisible(false));
-        } else {
-            this.phaseText.setVisible(false);
-        }
     }
 }

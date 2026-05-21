@@ -1,0 +1,11 @@
+{
+  "id": "level-02",
+  "spawn": { "x": 100, "y": 500 },
+  "objects": [
+    { "type": "ground",   "x": 400, "y": 575, "w": 800, "h": 50 },
+    { "type": "platform", "x": 300, "y": 400, "w": 150, "h": 20 },
+    { "type": "hazard",   "x": 310, "y": 380, "w": 40, "h": 20 },
+    { "type": "door",     "x": 700, "y": 500, "w": 50, "h": 100, "targetLevel": "level-01" }
+  ],
+  "links": []
+}
