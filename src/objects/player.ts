@@ -11,16 +11,15 @@ export class Player extends Phaser.GameObjects.Rectangle {
     levelStartY: number = 500;
 
     jumpTime: number = 0;
-    preJumpBoostWindow: number = 250;
-
-    volumeBuffer: {time: number, vol: number}[] = [];
+    jumpBoostWindow: number = 150;
+    peakVolume: number = 0;
 
     // ==================================== Params for Movement ====================================
     BASE_MOVEMENT_SPEED: number = 100;
     MAX_SPEED_MULT: number = 3;
 
-    BASE_JUMP: number = -700;
-    MAX_JUMP_MULT: number = 1.5;
+    BASE_JUMP: number = -500;
+    VOCAL_BOOST: number = 400;
 
     // Coyote Timing / Jump Buffering
     lastGroundedTime: number = 0;
@@ -51,22 +50,24 @@ export class Player extends Phaser.GameObjects.Rectangle {
         this.Body.setVelocityX(speed);
     }
 
-    pushVolumeSample(vol: number) {
-        const now = performance.now();
-        this.volumeBuffer.push({time: now, vol});
-        const cutoff = now - this.preJumpBoostWindow;
-        this.volumeBuffer = this.volumeBuffer.filter(s => s.time >= cutoff);
-    }
-
     jump() {
+        const boostActive = performance.now() - this.jumpTime < this.jumpBoostWindow;
         if (!this.Body.blocked.down && performance.now() - this.lastGroundedTime > this.CoyoteTime) return;
+        if (boostActive) return;
         this.lastGroundedTime = 0;
         this.lastJumpInputTime = 0;
-        const peak = this.volumeBuffer.reduce((max, s) => Math.max(max, s.vol), 0);
-        const velocity = this.BASE_JUMP * (1 + peak * (this.MAX_JUMP_MULT - 1));
-        this.Body.setVelocityY(velocity);
+        this.Body.setVelocityY(this.BASE_JUMP);
         this.jumpTime = performance.now();
-        this.volumeBuffer = [];
+        this.peakVolume = 0;
+    }
+
+    applyVocalBoost(volume: number) {
+        const age = performance.now() - this.jumpTime;
+        if (age > this.jumpBoostWindow) return;
+        if (volume > this.peakVolume) {
+            this.peakVolume = volume;
+            this.Body.setVelocityY(this.BASE_JUMP - volume * this.VOCAL_BOOST);
+        }
     }
 
     setSpeedMultiplier(multiplier: number) {

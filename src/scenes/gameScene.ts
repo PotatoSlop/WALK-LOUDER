@@ -43,15 +43,11 @@ export class GameScene extends Phaser.Scene {
 
         this.cursors = this.input.keyboard!.createCursorKeys();
 
-        const existingMic = this.registry.get('mic') as micInput | undefined;
-        if (!existingMic) {
+        if (!this.mic) {
             this.mic = new micInput();
-            this.registry.set('mic', this.mic);
             this.mic.init().then(() => {
                 this.scene.launch('calibration', { mic: this.mic });
             });
-        } else {
-            this.mic = existingMic;
         }
 
         if (this.scene.isActive('debug')) this.scene.stop('debug');
@@ -101,8 +97,8 @@ export class GameScene extends Phaser.Scene {
             (p as Player).death();
         });
 
-        this.physics.add.collider(this.player, this.groundGroup);
         this.physics.add.collider(this.player, this.platformGroup);
+        this.physics.add.collider(this.player, this.groundGroup);
     }
 
     private spawnObject(obj: LevelObject): any {
@@ -166,13 +162,12 @@ export class GameScene extends Phaser.Scene {
         var debugKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
 
         const vol = debugKey.isDown ? 0.8 : this.mic.getNormalizedVolume();
-        this.player.pushVolumeSample(vol);
 
         if (this.cursors.left.isDown) {
             this.player.moveLeft(vol);
         } else if (this.cursors.right.isDown) {
             this.player.moveRight(vol);
-        } else {
+        } else if (this.player.Body.blocked.down) {
             this.player.setSpeedMultiplier(0.8);
         }
 
@@ -187,6 +182,8 @@ export class GameScene extends Phaser.Scene {
         if (performance.now() - this.player.lastJumpInputTime <= this.player.JumpBufferTime) {
             this.player.jump();
         }
+
+        this.player.applyVocalBoost(vol);
 
         if (this.cursors.up.isUp && this.player.Body.velocity.y < 0) {
             this.player.Body.setVelocityY(this.player.Body.velocity.y * 0.85);

@@ -38,7 +38,10 @@ export class micInput {
     }
 
     private getVolume(): number { // Gets the nomralized volume at that given sample point
-        if (!this.stream) return 0;
+        if (!this.stream) {
+            console.log("no device");
+            return 0;
+        }
         this.analyser.getByteFrequencyData(this.dataArray);
         let sum = 0;
         for (let i = 0; i < this.dataArray.length; i++) {
