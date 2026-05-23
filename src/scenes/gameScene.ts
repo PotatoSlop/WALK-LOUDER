@@ -161,7 +161,7 @@ export class GameScene extends Phaser.Scene {
     update(_time: number, delta: number) {
         var debugKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
 
-        const vol = debugKey.isDown ? 0.8 : this.mic.getNormalizedVolume();
+        const vol = debugKey.isDown ? 0.8 : this.mic.smoothedVolume();
 
         if (this.cursors.left.isDown) {
             this.player.moveLeft(vol);
@@ -180,7 +180,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (performance.now() - this.player.lastJumpInputTime <= this.player.JumpBufferTime) {
-            this.player.jump();
+            this.player.jump(vol);
         }
 
         this.player.applyVocalBoost(vol);

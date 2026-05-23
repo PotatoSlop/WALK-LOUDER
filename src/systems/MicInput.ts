@@ -11,6 +11,7 @@ async function getMicAccess(): Promise<MediaStream | null> {
 const SAMPLE_DURATION = 3000 //ms
 const SAMPLE_INTERVAL = 16 // approx 60 samples per second
 const PEAK_SAMPLE_SIZE = 0.2 // Take the 80th percentile as the peak
+const EMA_ALPHA = 0.3
 
 export class micInput {
     audioContext: AudioContext;
@@ -21,6 +22,7 @@ export class micInput {
     noiseCeiling: number = 1;
     calibrationPhase: 'idle' | 'noise' | 'peak' | 'done' = 'idle';
     calibrationStartTime: number = 0;
+    private _smoothedVol: number = 0;
 
     constructor() {
         this.audioContext = new AudioContext();
@@ -66,6 +68,12 @@ export class micInput {
         return Math.min(1, Math.max(0, (rawVolume - this.noiseFloor) / range));
     }
 
+    smoothedVolume(): number {
+        const raw = this.getNormalizedVolume();
+        this._smoothedVol = EMA_ALPHA * raw + (1 - EMA_ALPHA) * this._smoothedVol;
+        return this._smoothedVol;
+    }
+
     async calibrateNoise(): Promise<void> {
         this.calibrationPhase = 'noise';
         this.calibrationStartTime = performance.now();
@@ -83,4 +91,6 @@ export class micInput {
         this.calibrationPhase = 'done';
     }
 }
+
+
 

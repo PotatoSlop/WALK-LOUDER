@@ -16,10 +16,10 @@ export class Player extends Phaser.GameObjects.Rectangle {
 
     // ==================================== Params for Movement ====================================
     BASE_MOVEMENT_SPEED: number = 100;
-    MAX_SPEED_MULT: number = 3;
+    MAX_SPEED_MULT: number = 5;
 
     BASE_JUMP: number = -500;
-    VOCAL_BOOST: number = 400;
+    VOCAL_BOOST: number = 600;
 
     // Coyote Timing / Jump Buffering
     lastGroundedTime: number = 0;
@@ -50,13 +50,13 @@ export class Player extends Phaser.GameObjects.Rectangle {
         this.Body.setVelocityX(speed);
     }
 
-    jump() {
+    jump(volume: number) {
         const boostActive = performance.now() - this.jumpTime < this.jumpBoostWindow;
         if (!this.Body.blocked.down && performance.now() - this.lastGroundedTime > this.CoyoteTime) return;
         if (boostActive) return;
         this.lastGroundedTime = 0;
         this.lastJumpInputTime = 0;
-        this.Body.setVelocityY(this.BASE_JUMP);
+        this.Body.setVelocityY(this.BASE_JUMP - volume * this.VOCAL_BOOST);
         this.jumpTime = performance.now();
         this.peakVolume = 0;
     }
