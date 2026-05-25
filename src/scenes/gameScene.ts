@@ -85,6 +85,15 @@ export class GameScene extends Phaser.Scene {
         this.player.levelStartX = spawnX;
         this.player.levelStartY = spawnY;
 
+        // ── Index every Tiled object by id so saws can reference endpoint markers
+        // by `endTarget` (Tiled's "Object" property type stores the target id as a number)
+        const objectById = new Map<number, Phaser.Types.Tilemaps.TiledObject>();
+        for (const layer of map.objects ?? []) {
+            for (const obj of layer.objects) {
+                if (obj.id !== undefined) objectById.set(obj.id, obj);
+            }
+        }
+
         // ── Spawn interactables first — switches must exist before hazards link to them
         const switchById = new Map<number, Switch>();
         const doorByX = new Map<number, Door>();
@@ -96,7 +105,7 @@ export class GameScene extends Phaser.Scene {
         // ── Spawn all hazards from the Tiled Hazards layer
         const hazardLayer = map.getObjectLayer('Hazards');
         if (hazardLayer) {
-            for (const obj of hazardLayer.objects) this.spawnHazard(obj, switchById);
+            for (const obj of hazardLayer.objects) this.spawnHazard(obj, switchById, objectById);
         }
 
         // ── Collision callbacks ────────────────────────────────────────
@@ -263,7 +272,8 @@ export class GameScene extends Phaser.Scene {
 
     private spawnHazard(
         obj: Phaser.Types.Tilemaps.TiledObject,
-        switchById: Map<number, Switch>
+        switchById: Map<number, Switch>,
+        objectById: Map<number, Phaser.Types.Tilemaps.TiledObject>
     ) {
         const type = this.getTiledProp<string>(obj, 'type');
         const { cx, cy, w, h, rot } = this.objectGeometry(obj);
@@ -283,7 +293,7 @@ export class GameScene extends Phaser.Scene {
                 this.spawnTriggerSpike(cx, cy, w, h);
                 break;
             case 'saw':
-                this.spawnSaw(obj, cx, cy, switchById);
+                this.spawnSaw(obj, cx, cy, switchById, objectById);
                 break;
             case 'turret':
                 this.spawnTurret(obj, cx, cy);
@@ -321,10 +331,26 @@ export class GameScene extends Phaser.Scene {
     private spawnSaw(
         obj: Phaser.Types.Tilemaps.TiledObject,
         cx: number, cy: number,
-        switchById: Map<number, Switch>
+        switchById: Map<number, Switch>,
+        objectById: Map<number, Phaser.Types.Tilemaps.TiledObject>
     ) {
-        const endX = this.getTiledProp<number>(obj, 'endX') ?? cx;
-        const endY = this.getTiledProp<number>(obj, 'endY') ?? cy;
+        // Two ways to set the end position:
+        //   1. `endTarget` (Object reference) — points at an endpoint marker drawn in Tiled
+        //      (preferred — visual + lets you move the endpoint without touching properties)
+        //   2. `endX`/`endY` literal numbers — fallback for hazards without a marker
+        // endTarget wins if both are present.
+        const endTargetId = this.getTiledProp<number>(obj, 'endTarget');
+        let endX: number | undefined;
+        let endY: number | undefined;
+        if (endTargetId !== undefined) {
+            const target = objectById.get(endTargetId);
+            if (target) {
+                endX = target.x! + (target.width ?? 0) / 2;
+                endY = target.y! + (target.height ?? 0) / 2;
+            }
+        }
+        endX ??= this.getTiledProp<number>(obj, 'endX') ?? cx;
+        endY ??= this.getTiledProp<number>(obj, 'endY') ?? cy;
         const speed = this.getTiledProp<number>(obj, 'speed') ?? 30;
         const linkedSwitchId = this.getTiledProp<number>(obj, 'linkedSwitchId');
         const moves = endX !== cx || endY !== cy;
