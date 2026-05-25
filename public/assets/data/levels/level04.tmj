@@ -682,7 +682,7 @@
                     ]
                 },
                 {
-                    "id": 21,
+                    "id": 2,
                     "name": "",
                     "rotation": 0,
                     "type": "",
@@ -700,7 +700,7 @@
                         {
                             "name": "endX",
                             "type": "int",
-                            "value": 160
+                            "value": 216
                         },
                         {
                             "name": "endY",
@@ -710,50 +710,12 @@
                         {
                             "name": "speed",
                             "type": "int",
-                            "value": 70
-                        },
-                        {
-                            "name": "linkedSwitchId",
-                            "type": "object",
-                            "value": 20
-                        }
-                    ]
-                },
-                {
-                    "id": 22,
-                    "name": "",
-                    "rotation": 0,
-                    "type": "",
-                    "visible": true,
-                    "x": 188,
-                    "y": 88,
-                    "width": 24,
-                    "height": 8,
-                    "properties": [
-                        {
-                            "name": "type",
-                            "type": "string",
-                            "value": "saw"
-                        },
-                        {
-                            "name": "endX",
-                            "type": "int",
-                            "value": 120
-                        },
-                        {
-                            "name": "endY",
-                            "type": "int",
-                            "value": 92
-                        },
-                        {
-                            "name": "speed",
-                            "type": "int",
                             "value": 50
                         },
                         {
                             "name": "linkedSwitchId",
                             "type": "object",
-                            "value": 19
+                            "value": 7
                         }
                     ]
                 }
@@ -836,16 +798,15 @@
                 },
                 {
                     "gid": 372,
-                    "height": 8,
-                    "id": 19,
+                    "id": 6,
                     "name": "",
-                    "opacity": 1,
                     "rotation": 0,
                     "type": "",
                     "visible": true,
-                    "width": 8,
-                    "x": 176,
+                    "x": 192,
                     "y": 88,
+                    "width": 8,
+                    "height": 8,
                     "properties": [
                         {
                             "name": "type",
@@ -856,21 +817,25 @@
                 },
                 {
                     "gid": 372,
-                    "height": 8,
-                    "id": 20,
+                    "id": 7,
                     "name": "",
-                    "opacity": 1,
                     "rotation": 0,
                     "type": "",
                     "visible": true,
-                    "width": 8,
-                    "x": 40,
+                    "x": 64,
                     "y": 120,
+                    "width": 8,
+                    "height": 8,
                     "properties": [
                         {
                             "name": "type",
                             "type": "string",
                             "value": "switch"
+                        },
+                        {
+                            "name": "switchType",
+                            "type": "string",
+                            "value": "oneshot"
                         }
                     ]
                 }
