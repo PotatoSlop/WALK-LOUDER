@@ -39,26 +39,21 @@ export class GameScene extends Phaser.Scene {
     mic: any;
 
     private currentLevelId: string = 'level01';
+    private transitioning: boolean = false;
 
     constructor() {
         super({ key: 'main' });
     }
 
-/*     init(data: { levelId?: string }) {
-        this.currentLevelId = data.levelId
-            ?? localStorage.getItem('walkloud_currentLevel')
-            ?? 'level01';
-    } */
-
     init(data: { levelId?: string }) {
         this.currentLevelId = data.levelId ?? 'level01';
+        this.transitioning = false;
     }
 
     preload() {
         this.load.tilemapTiledJSON(this.currentLevelId, `assets/data/levels/${this.currentLevelId}.tmj`);
         this.load.image('tiles', 'assets/walk-louder-tile-sheet.png');
         this.load.spritesheet('tileSprites', 'assets/walk-louder-tile-sheet.png', { frameWidth: 8, frameHeight: 8 });
-        this.load.json('hazardConfig', 'assets/data/hazards.json');
     }
 
     create() {
@@ -89,224 +84,17 @@ export class GameScene extends Phaser.Scene {
         this.player.levelStartX = spawnX;
         this.player.levelStartY = spawnY;
 
-        // ── Spawn hazards from Tiled (spikes, trigger_spikes) ──────────
-        // Saws and turrets are now driven by hazards.json — see below.
-        const hazardLayer = map.getObjectLayer('Hazards');
-        if (hazardLayer) {
-            for (const obj of hazardLayer.objects) {
-                const type = this.getTiledProp(obj, 'type');
-                if (type === 'saw' || type === 'turret') continue; // handled by config
-
-                const w = obj.width!;
-                const h = obj.height!;
-                const rot = obj.rotation ?? 0;
-
-                // Compute center — tile objects (gid) use bottom-left origin
-                // and rotation is around that corner, which shifts the center.
-                let cx: number, cy: number;
-                if (obj.gid) {
-                    const rad = rot * Math.PI / 180;
-                    const cosR = Math.cos(rad);
-                    const sinR = Math.sin(rad);
-                    cx = obj.x! + (w / 2) * cosR + (h / 2) * sinR;
-                    cy = obj.y! + (w / 2) * sinR - (h / 2) * cosR;
-                } else {
-                    // Plain rectangle — top-left origin, no rotation
-                    cx = obj.x! + w / 2;
-                    cy = obj.y! + h / 2;
-                }
-
-                // Render tile sprite for objects that have a gid
-                if (obj.gid) this.addTileSprite(obj.gid, obj.x!, obj.y!, rot);
-
-                switch (type) {
-                    case 'spike': {
-                        const spike = new Hazard(this, cx, cy, w, h, true);
-                        if (obj.gid) spike.setAlpha(0); // visual handled by tile sprite
-                        this.hazardGroup.add(spike);
-                        break;
-                    }
-                    case 'trigger_spike': {
-                        // Visual — animated pop-up spike tile(s)
-                        const numSpikeTiles = Math.max(1, Math.round(w / 8));
-                        const trigContainer = this.add.container(cx, cy);
-                        trigContainer.setDepth(50);
-                        const trigTiles: Phaser.GameObjects.Image[] = [];
-                        for (let i = 0; i < numSpikeTiles; i++) {
-                            const tileX = (i - (numSpikeTiles - 1) / 2) * 8;
-                            const tile = this.add.image(tileX, 0, 'tileSprites', TRIGGER_SPIKE_FRAMES[0] - 1);
-                            tile.setOrigin(0.5, 0.5);
-                            trigContainer.add(tile);
-                            trigTiles.push(tile);
-                        }
-                        // Cycle: retract → extend → retract
-                        let trigFrame = 0;
-                        let trigForward = true;
-                        this.time.addEvent({
-                            delay: 250,
-                            loop: true,
-                            callback: () => {
-                                if (trigForward) {
-                                    trigFrame++;
-                                    if (trigFrame >= TRIGGER_SPIKE_FRAMES.length - 1) trigForward = false;
-                                } else {
-                                    trigFrame--;
-                                    if (trigFrame <= 0) trigForward = true;
-                                }
-                                const frame = TRIGGER_SPIKE_FRAMES[trigFrame] - 1;
-                                trigTiles.forEach(t => t.setFrame(frame));
-                            },
-                        });
-
-                        const tSpike = new Hazard(this, cx, cy, w, h, true);
-                        tSpike.setAlpha(0);
-                        tSpike.tileSprite = trigContainer;
-                        this.hazardGroup.add(tSpike);
-                        break;
-                    }
-                }
-            }
-        }
-
-        // ── Spawn interactables (before config hazards so switches exist for linking) ──
+        // ── Spawn interactables first — switches must exist before hazards link to them
+        const switchById = new Map<number, Switch>();
         const interLayer = map.getObjectLayer('Interactables');
         if (interLayer) {
-            for (const obj of interLayer.objects) {
-                const type = this.getTiledProp(obj, 'type');
-                const x = obj.x!;
-                const y = obj.gid ? obj.y! - obj.height! : obj.y!;
-                const w = obj.width!;
-                const h = obj.height!;
-                const cx = x + w / 2;
-                const cy = y + h / 2;
-
-                switch (type) {
-                    case 'door': {
-                        const targetLevel = this.getTiledProp(obj, 'targetLevel') ?? '';
-                        // Lock state from tile: handle = locked, no handle = unlocked
-                        const locked = obj.gid === DOOR_LOCKED_GID;
-                        const keyType = locked ? 'default' : null;
-                        const sprite = obj.gid
-                            ? this.addTileSprite(obj.gid, obj.x!, obj.y!)
-                            : null;
-                        const door = new Door(this, cx, cy, w, h, locked, keyType, targetLevel);
-                        door.setAlpha(0);
-                        door.tileSprite = sprite;
-                        this.doorGroup.add(door);
-                        break;
-                    }
-                    case 'door_top': {
-                        // Decorative top piece — visual only
-                        if (obj.gid) this.addTileSprite(obj.gid, obj.x!, obj.y!);
-                        break;
-                    }
-                    case 'key': {
-                        const keyType = this.getTiledProp(obj, 'keyType') ?? 'default';
-                        const sprite = obj.gid
-                            ? this.addTileSprite(obj.gid, obj.x!, obj.y!)
-                            : null;
-                        const k = new Key(this, cx, cy, w, h, keyType);
-                        k.setAlpha(0);
-                        k.tileSprite = sprite;
-                        this.itemGroup.add(k);
-                        break;
-                    }
-                    case 'switch': {
-                        const switchType = (this.getTiledProp(obj, 'switchType') ?? 'button') as 'button' | 'lever' | 'oneshot';
-                        const sprite = obj.gid ? this.addTileSprite(obj.gid, obj.x!, obj.y!) : null;
-                        const sw = new Switch(this, cx, cy, w, h, switchType);
-                        sw.setAlpha(0);
-                        if (sprite) {
-                            sw.tileSprite = sprite;
-                            sw.baseFrame = obj.gid! - 1;
-                        }
-                        this.switchGroup.add(sw);
-                        break;
-                    }
-                }
-            }
+            for (const obj of interLayer.objects) this.spawnInteractable(obj, switchById);
         }
 
-        // ── Spawn dynamic hazards from config (hazards.json) ──────────
-        // Edit hazards.json directly to add/move/tune saws and turrets.
-        // Positions are center coords in world space — no grid snap.
-        // Runs AFTER interactables so switches are available for linking.
-        const hazardConfig = this.cache.json.get('hazardConfig');
-        const levelHazards = hazardConfig?.[this.currentLevelId];
-
-        if (levelHazards?.saws) {
-            for (const cfg of levelHazards.saws) {
-                const { x, y, endX = x, endY = y, speed = 30 } = cfg;
-                const hasMovement = endX !== x || endY !== y;
-
-                // Visual — 3-tile-wide saw with cycling animation
-                const sawContainer = this.add.container(x, y);
-                sawContainer.setDepth(50);
-                const sawTiles: Phaser.GameObjects.Image[] = [];
-                for (let i = 0; i < 3; i++) {
-                    const tile = this.add.image((i - 1) * 8, 0, 'tileSprites', SAW_ANIM_FRAMES[0][i] - 1);
-                    tile.setOrigin(0.5, 0.5);
-                    sawContainer.add(tile);
-                    sawTiles.push(tile);
-                }
-                let sawFrame = 0;
-                this.time.addEvent({
-                    delay: 150,
-                    loop: true,
-                    callback: () => {
-                        sawFrame = (sawFrame + 1) % SAW_ANIM_FRAMES.length;
-                        for (let i = 0; i < 3; i++) {
-                            sawTiles[i].setFrame(SAW_ANIM_FRAMES[sawFrame][i] - 1);
-                        }
-                    },
-                });
-
-                // Hitbox: center 8×8 tile only
-                const saw = new Hazard(
-                    this, x, y, 8, 8,
-                    !hasMovement,
-                    hasMovement ? { x: endX, y: endY } : undefined,
-                    hasMovement ? speed : undefined,
-                    'auto'
-                );
-                saw.setAlpha(0);
-                saw.tileSprite = sawContainer;
-
-                // Link to a switch if configured — saw starts disabled
-                if (cfg.linkedSwitch !== undefined) {
-                    const switches = this.switchGroup.getChildren();
-                    const sw = switches[cfg.linkedSwitch] as Switch;
-                    if (sw) {
-                        saw.linkSwitch(sw);
-                        saw.setEnabled(false);
-                    }
-                }
-
-                this.hazardGroup.add(saw);
-            }
-        }
-
-        if (levelHazards?.turrets) {
-            for (const cfg of levelHazards.turrets) {
-                const { x, y, direction = 'right' } = cfg;
-
-                // Visual — 2×2 tile grid in a container
-                const turretContainer = this.add.container(x, y);
-                turretContainer.setDepth(50);
-                const offsets = [[-4, -4], [4, -4], [-4, 4], [4, 4]];
-                for (let i = 0; i < 4; i++) {
-                    const tile = this.add.image(offsets[i][0], offsets[i][1], 'tileSprites', TURRET_TILE_GIDS[i] - 1);
-                    tile.setOrigin(0.5, 0.5);
-                    turretContainer.add(tile);
-                }
-                const dirAngles: Record<string, number> = { right: 0, down: 90, left: 180, up: -90 };
-                turretContainer.setAngle(dirAngles[direction] ?? 0);
-
-                const turret = new Hazard(this, x, y, 16, 16, true);
-                turret.setAlpha(0);
-                turret.tileSprite = turretContainer;
-                this.hazardGroup.add(turret);
-            }
+        // ── Spawn all hazards from the Tiled Hazards layer
+        const hazardLayer = map.getObjectLayer('Hazards');
+        if (hazardLayer) {
+            for (const obj of hazardLayer.objects) this.spawnHazard(obj, switchById);
         }
 
         // ── Collision callbacks ────────────────────────────────────────
@@ -331,6 +119,7 @@ export class GameScene extends Phaser.Scene {
 
         for (const d of this.doorGroup.getChildren()) {
             this.physics.add.overlap(this.player, d, (p, door) => {
+                if (this.transitioning) return;
                 const doorObj = door as Door;
                 const player = p as Player;
                 if (doorObj.isLocked) {
@@ -338,8 +127,15 @@ export class GameScene extends Phaser.Scene {
                     if (!doorObj.isLocked && doorObj.tileSprite) {
                         doorObj.tileSprite.setFrame(DOOR_UNLOCKED_GID - 1);
                     }
+                    // Unlock animation pause — let the player see the sprite swap before transition
+                    if (!doorObj.isLocked) {
+                        this.transitioning = true;
+                        this.time.delayedCall(300, () => this.switchLevel(doorObj.targetLevel));
+                    }
+                    return;
                 }
-                if (!doorObj.isLocked) this.switchLevel(doorObj.targetLevel);
+                this.transitioning = true;
+                this.switchLevel(doorObj.targetLevel);
             });
         }
 
@@ -383,19 +179,206 @@ export class GameScene extends Phaser.Scene {
         return img;
     }
 
-    private getTiledProp(
+    private getTiledProp<T = any>(
         obj: Phaser.Types.Tilemaps.TiledObject,
         name: string
-    ): string | undefined {
+    ): T | undefined {
         const prop = obj.properties?.find((p: any) => p.name === name);
         return prop?.value;
     }
 
+    /**
+     * Compute world-space center + size for a Tiled object.
+     * Tile objects (with gid) anchor at bottom-left; rectangles anchor at top-left.
+     */
+    private objectGeometry(obj: Phaser.Types.Tilemaps.TiledObject) {
+        const w = obj.width!;
+        const h = obj.height!;
+        const rot = obj.rotation ?? 0;
+        let cx: number, cy: number;
+        if (obj.gid) {
+            const rad = rot * Math.PI / 180;
+            const cosR = Math.cos(rad);
+            const sinR = Math.sin(rad);
+            cx = obj.x! + (w / 2) * cosR + (h / 2) * sinR;
+            cy = obj.y! + (w / 2) * sinR - (h / 2) * cosR;
+        } else {
+            cx = obj.x! + w / 2;
+            cy = obj.y! + h / 2;
+        }
+        return { cx, cy, w, h, rot };
+    }
+
+    private spawnInteractable(
+        obj: Phaser.Types.Tilemaps.TiledObject,
+        switchById: Map<number, Switch>
+    ) {
+        const type = this.getTiledProp<string>(obj, 'type');
+        const { cx, cy, w, h } = this.objectGeometry(obj);
+        const sprite = obj.gid ? this.addTileSprite(obj.gid, obj.x!, obj.y!) : null;
+
+        switch (type) {
+            case 'door': {
+                const targetLevel = this.getTiledProp<string>(obj, 'targetLevel') ?? '';
+                const locked = obj.gid === DOOR_LOCKED_GID;
+                const keyType = locked ? 'default' : null;
+                const door = new Door(this, cx, cy, w, h, locked, keyType, targetLevel);
+                door.setAlpha(0);
+                door.tileSprite = sprite;
+                this.doorGroup.add(door);
+                break;
+            }
+            case 'door_top':
+                // Decorative top piece — sprite is the whole thing
+                break;
+            case 'key': {
+                const keyType = this.getTiledProp<string>(obj, 'keyType') ?? 'default';
+                const k = new Key(this, cx, cy, w, h, keyType);
+                k.setAlpha(0);
+                k.tileSprite = sprite;
+                this.itemGroup.add(k);
+                break;
+            }
+            case 'switch': {
+                const switchType = (this.getTiledProp<string>(obj, 'switchType') ?? 'button') as 'button' | 'lever' | 'oneshot';
+                const sw = new Switch(this, cx, cy, w, h, switchType);
+                sw.setAlpha(0);
+                if (sprite) {
+                    sw.tileSprite = sprite;
+                    sw.baseFrame = obj.gid! - 1;
+                }
+                this.switchGroup.add(sw);
+                switchById.set(obj.id!, sw);
+                break;
+            }
+        }
+    }
+
+    private spawnHazard(
+        obj: Phaser.Types.Tilemaps.TiledObject,
+        switchById: Map<number, Switch>
+    ) {
+        const type = this.getTiledProp<string>(obj, 'type');
+        const { cx, cy, w, h, rot } = this.objectGeometry(obj);
+
+        switch (type) {
+            case 'spike': {
+                if (obj.gid) this.addTileSprite(obj.gid, obj.x!, obj.y!, rot);
+                const spike = new Hazard(this, cx, cy, w, h, true);
+                if (obj.gid) spike.setAlpha(0);
+                this.hazardGroup.add(spike);
+                break;
+            }
+            case 'trigger_spike':
+                this.spawnTriggerSpike(cx, cy, w, h);
+                break;
+            case 'saw':
+                this.spawnSaw(obj, cx, cy, switchById);
+                break;
+            case 'turret':
+                this.spawnTurret(obj, cx, cy);
+                break;
+        }
+    }
+
+    private spawnTriggerSpike(cx: number, cy: number, w: number, h: number) {
+        const tileCount = Math.max(1, Math.round(w / 8));
+        const container = this.add.container(cx, cy).setDepth(50);
+        const tiles: Phaser.GameObjects.Image[] = [];
+        for (let i = 0; i < tileCount; i++) {
+            const t = this.add.image((i - (tileCount - 1) / 2) * 8, 0, 'tileSprites', TRIGGER_SPIKE_FRAMES[0] - 1);
+            container.add(t);
+            tiles.push(t);
+        }
+        let frame = 0;
+        let forward = true;
+        this.time.addEvent({
+            delay: 250,
+            loop: true,
+            callback: () => {
+                if (forward) { frame++; if (frame >= TRIGGER_SPIKE_FRAMES.length - 1) forward = false; }
+                else         { frame--; if (frame <= 0) forward = true; }
+                tiles.forEach(t => t.setFrame(TRIGGER_SPIKE_FRAMES[frame] - 1));
+            },
+        });
+
+        const hazard = new Hazard(this, cx, cy, w, h, true);
+        hazard.setAlpha(0);
+        hazard.tileSprite = container;
+        this.hazardGroup.add(hazard);
+    }
+
+    private spawnSaw(
+        obj: Phaser.Types.Tilemaps.TiledObject,
+        cx: number, cy: number,
+        switchById: Map<number, Switch>
+    ) {
+        const endX = this.getTiledProp<number>(obj, 'endX') ?? cx;
+        const endY = this.getTiledProp<number>(obj, 'endY') ?? cy;
+        const speed = this.getTiledProp<number>(obj, 'speed') ?? 30;
+        const linkedSwitchId = this.getTiledProp<number>(obj, 'linkedSwitchId');
+        const moves = endX !== cx || endY !== cy;
+
+        const container = this.add.container(cx, cy).setDepth(50);
+        const tiles: Phaser.GameObjects.Image[] = [];
+        for (let i = 0; i < 3; i++) {
+            const t = this.add.image((i - 1) * 8, 0, 'tileSprites', SAW_ANIM_FRAMES[0][i] - 1);
+            container.add(t);
+            tiles.push(t);
+        }
+        let f = 0;
+        this.time.addEvent({
+            delay: 150,
+            loop: true,
+            callback: () => {
+                f = (f + 1) % SAW_ANIM_FRAMES.length;
+                for (let i = 0; i < 3; i++) tiles[i].setFrame(SAW_ANIM_FRAMES[f][i] - 1);
+            },
+        });
+
+        // Hitbox is only the 8×8 center tile — visual is decorative
+        const saw = new Hazard(
+            this, cx, cy, 8, 8,
+            !moves,
+            moves ? { x: endX, y: endY } : undefined,
+            moves ? speed : undefined,
+            'auto'
+        );
+        saw.setAlpha(0);
+        saw.tileSprite = container;
+
+        if (linkedSwitchId !== undefined) {
+            const sw = switchById.get(linkedSwitchId);
+            if (sw) {
+                saw.linkSwitch(sw);
+                saw.setEnabled(false);
+            }
+        }
+
+        this.hazardGroup.add(saw);
+    }
+
+    private spawnTurret(
+        obj: Phaser.Types.Tilemaps.TiledObject,
+        cx: number, cy: number
+    ) {
+        const direction = this.getTiledProp<string>(obj, 'direction') ?? 'right';
+        const container = this.add.container(cx, cy).setDepth(50);
+        const offsets: [number, number][] = [[-4, -4], [4, -4], [-4, 4], [4, 4]];
+        for (let i = 0; i < 4; i++) {
+            container.add(this.add.image(offsets[i][0], offsets[i][1], 'tileSprites', TURRET_TILE_GIDS[i] - 1));
+        }
+        const dirAngles: Record<string, number> = { right: 0, down: 90, left: 180, up: -90 };
+        container.setAngle(dirAngles[direction] ?? 0);
+
+        const turret = new Hazard(this, cx, cy, 16, 16, true);
+        turret.setAlpha(0);
+        turret.tileSprite = container;
+        this.hazardGroup.add(turret);
+    }
+
     switchLevel(levelId: string) {
-        // Normalise: Tiled uses "level-02" but filenames / config keys use "level02"
-        const id = levelId.replace(/-/g, '');
-        localStorage.setItem('walkloud_currentLevel', id);
-        this.scene.restart({ levelId: id });
+        this.scene.restart({ levelId });
     }
 
     // ── Game loop ──────────────────────────────────────────────────────
