@@ -6,6 +6,7 @@ export class Door extends Phaser.GameObjects.Rectangle {
     isLocked: boolean;
     targetLevel: string;
     tileSprite: Phaser.GameObjects.Image | null = null;
+    topSprite: Phaser.GameObjects.Image | null = null;
 
     constructor(
         scene: Phaser.Scene,
