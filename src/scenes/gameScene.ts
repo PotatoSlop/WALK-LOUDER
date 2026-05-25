@@ -8,8 +8,9 @@ import { MovingPlatform } from '../objects/movingPlatform';
 import { Switch } from '../objects/switches';
 
 // Door tile GIDs — determines lock behaviour
-const DOOR_LOCKED_GID = 378;   // door with handle → locked, requires key
-const DOOR_UNLOCKED_GID = 376; // door without handle → always unlocked
+const DOOR_LOCKED_GID = 378;        // door body with handle → locked
+const DOOR_UNLOCKED_GID = 376;      // door body without handle → unlocked
+const DOOR_UNLOCKED_TOP_GID = 356;  // top piece paired with the unlocked body (locked top is +2 = 358)
 
 // Saw animation frames — each sub-array is one anim frame with 3 tile GIDs [left, center, right]
 const SAW_ANIM_FRAMES = [
@@ -86,9 +87,10 @@ export class GameScene extends Phaser.Scene {
 
         // ── Spawn interactables first — switches must exist before hazards link to them
         const switchById = new Map<number, Switch>();
+        const doorByX = new Map<number, Door>();
         const interLayer = map.getObjectLayer('Interactables');
         if (interLayer) {
-            for (const obj of interLayer.objects) this.spawnInteractable(obj, switchById);
+            for (const obj of interLayer.objects) this.spawnInteractable(obj, switchById, doorByX);
         }
 
         // ── Spawn all hazards from the Tiled Hazards layer
@@ -124,11 +126,10 @@ export class GameScene extends Phaser.Scene {
                 const player = p as Player;
                 if (doorObj.isLocked) {
                     doorObj.open(player.items);
-                    if (!doorObj.isLocked && doorObj.tileSprite) {
-                        doorObj.tileSprite.setFrame(DOOR_UNLOCKED_GID - 1);
-                    }
-                    // Unlock animation pause — let the player see the sprite swap before transition
                     if (!doorObj.isLocked) {
+                        doorObj.tileSprite?.setFrame(DOOR_UNLOCKED_GID - 1);
+                        doorObj.topSprite?.setFrame(DOOR_UNLOCKED_TOP_GID - 1);
+                        // Unlock animation pause — let the player see the sprite swap before transition
                         this.transitioning = true;
                         this.time.delayedCall(300, () => this.switchLevel(doorObj.targetLevel));
                     }
@@ -211,7 +212,8 @@ export class GameScene extends Phaser.Scene {
 
     private spawnInteractable(
         obj: Phaser.Types.Tilemaps.TiledObject,
-        switchById: Map<number, Switch>
+        switchById: Map<number, Switch>,
+        doorByX: Map<number, Door>
     ) {
         const type = this.getTiledProp<string>(obj, 'type');
         const { cx, cy, w, h } = this.objectGeometry(obj);
@@ -226,11 +228,16 @@ export class GameScene extends Phaser.Scene {
                 door.setAlpha(0);
                 door.tileSprite = sprite;
                 this.doorGroup.add(door);
+                doorByX.set(obj.x!, door);
                 break;
             }
-            case 'door_top':
-                // Decorative top piece — sprite is the whole thing
+            case 'door_top': {
+                // Decorative top piece — link to the door at the same column so the
+                // top sprite can be swapped when the door unlocks at runtime.
+                const door = doorByX.get(obj.x!);
+                if (door) door.topSprite = sprite;
                 break;
+            }
             case 'key': {
                 const keyType = this.getTiledProp<string>(obj, 'keyType') ?? 'default';
                 const k = new Key(this, cx, cy, w, h, keyType);
