@@ -15,11 +15,11 @@ export class Player extends Phaser.GameObjects.Rectangle {
     peakVolume: number = 0;
 
     // ==================================== Params for Movement ====================================
-    BASE_MOVEMENT_SPEED: number = 100;
+    BASE_MOVEMENT_SPEED: number = 30;
     MAX_SPEED_MULT: number = 5;
 
-    BASE_JUMP: number = -500;
-    VOCAL_BOOST: number = 600;
+    BASE_JUMP: number = -135;
+    VOCAL_BOOST: number = 160;
 
     // Coyote Timing / Jump Buffering
     lastGroundedTime: number = 0;
@@ -29,11 +29,12 @@ export class Player extends Phaser.GameObjects.Rectangle {
     JumpBufferTime: number = this.CoyoteTime;
 
     constructor(scene: Phaser.Scene, x: number, y: number, items: string[] = []) {
-        super(scene, x, y, 40, 60, 0x00ff00);
+        super(scene, x, y, 8, 12, 0x00ff00);
         scene.add.existing(this);
         scene.physics.add.existing(this);
         this.Body = this.body as Phaser.Physics.Arcade.Body;
-        this.Body.setDragY(100);
+        this.Body.setSize(8, 12);
+        this.Body.setDragY(27);
         this.Body.setCollideWorldBounds(true);
         this.setDepth(100);
     }

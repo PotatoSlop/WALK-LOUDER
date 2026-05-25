@@ -2,64 +2,57 @@ import Phaser from 'phaser';
 import { GameScene } from './gameScene';
 
 export class DebugScene extends Phaser.Scene {
-    marker!: Phaser.GameObjects.Rectangle;
-    volText!: Phaser.GameObjects.Text;
-    posText!: Phaser.GameObjects.Text;
-    velText!: Phaser.GameObjects.Text;
-    micRawText!: Phaser.GameObjects.Text;
-    calibrationText!: Phaser.GameObjects.Text;
-    phaseText!: Phaser.GameObjects.Text;
+    private overlay!: HTMLDivElement;
 
     constructor() {
         super({ key: 'debug' });
     }
 
     create() {
-        this.marker = this.add.rectangle(0, 0, 50, 70, 0xff0000, 0.35);
-        this.marker.setStrokeStyle(2, 0xff0000);
-
-        const style: Phaser.Types.GameObjects.Text.TextStyle = {
-            font: 'press-start-2p',
-            fontSize: '14px',
+        // DOM overlay — renders at native screen resolution, not affected by pixelArt scaling
+        this.overlay = document.createElement('div');
+        this.overlay.id = 'debug-overlay';
+        Object.assign(this.overlay.style, {
+            position: 'absolute',
+            top: '8px',
+            left: '8px',
+            pointerEvents: 'none',
+            fontFamily: 'monospace',
+            fontSize: '12px',
             color: '#ff0000',
-            backgroundColor: '#000000aa',
-            padding: { x: 6, y: 4 },
-        };
+            zIndex: '1000',
+            lineHeight: '1.6',
+        });
 
-        this.volText = this.add.text(8, 8, '', style);
-        this.posText = this.add.text(8, 30, '', style);
-        this.velText = this.add.text(8, 52, '', style);
-        this.micRawText = this.add.text(8, 74, '', style);
-        this.calibrationText = this.add.text(8, 96, '', style);
+        const canvas = this.game.canvas;
+        const parent = canvas.parentElement!;
+        parent.style.position = 'relative';
+        parent.appendChild(this.overlay);
+
+        this.events.on('shutdown', () => this.overlay?.remove());
     }
 
     update() {
         const gameScene = this.scene.get('main') as GameScene;
-        if (!gameScene?.player) return;
+        if (!gameScene?.player || !this.overlay) return;
 
         const player = gameScene.player;
         const mic = gameScene.mic;
 
-        this.marker.setPosition(player.x, player.y);
-
         const vol = mic?.getNormalizedVolume?.() ?? -1;
-        const isNan = Number.isNaN(vol);
-        this.volText.setText(`vol: ${isNan ? 'NaN!' : vol.toFixed(4)}`);
-        if (isNan) this.volText.setColor('#ffff00');
-
-        this.posText.setText(`pos: (${player.x.toFixed(1)}, ${player.y.toFixed(1)})`);
-
         const vx = player.Body?.velocity?.x ?? 0;
         const vy = player.Body?.velocity?.y ?? 0;
-        this.velText.setText(`vel: (${vx.toFixed(1)}, ${vy.toFixed(1)})`);
-
         const floor = mic?.noiseFloor ?? -1;
         const ceiling = mic?.noiseCeiling ?? -1;
-        this.micRawText.setText(`floor: ${floor.toFixed(4)}  ceil: ${ceiling.toFixed(4)}`);
-
         const range = ceiling - floor;
-        this.calibrationText.setText(
-            `range: ${range.toFixed(4)}${range <= 0 ? '  BAD (div by zero!)' : ''}`
-        );
+
+        this.overlay.innerHTML = [
+            `vol: ${Number.isNaN(vol) ? 'NaN!' : vol.toFixed(4)}`,
+            `pos: (${player.x.toFixed(1)}, ${player.y.toFixed(1)})`,
+            `vel: (${vx.toFixed(1)}, ${vy.toFixed(1)})`,
+            `floor: ${floor.toFixed(4)}  ceil: ${ceiling.toFixed(4)}`,
+            `range: ${range.toFixed(4)}${range <= 0 ? '  BAD (div by zero!)' : ''}`,
+            `items: [${(gameScene.player.items ?? []).join(', ')}]`,
+        ].join('<br>');
     }
 }

@@ -8,6 +8,7 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
     isStatic: boolean;
     mode: 'auto' | 'driven';
     powered: boolean = false;
+    tileSprite: Phaser.GameObjects.Image | Phaser.GameObjects.Container | null = null;
 
     private startPos: Vec2;
     private endPos: Vec2;
@@ -50,6 +51,8 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
         this.setActive(state);
         // StaticBody is missing 'enable' in Phaser's TS types but it exists at runtime
         (this.body as any).enable = state;
+        // Also show/hide the tile sprite visual
+        if (this.tileSprite) this.tileSprite.setVisible(state);
     }
 
     syncPosition(x: number, y: number) {
@@ -66,6 +69,11 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
             if (shouldBeEnabled !== this.active) {
                 this.setEnabled(shouldBeEnabled);
             }
+        }
+
+        // Keep tile sprite visual in sync with physics position
+        if (this.tileSprite) {
+            this.tileSprite.setPosition(this.x, this.y);
         }
 
         if (!this.active || this.isStatic) return;

@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 export class Key extends Phaser.GameObjects.Rectangle {
     Body!: Phaser.Physics.Arcade.Body;
     keyType: string;
+    tileSprite: Phaser.GameObjects.Image | null = null;
 
     constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number, keyType: string) {
         super(scene, x, y, width, height, 0xffdd00);

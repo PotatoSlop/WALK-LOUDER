@@ -32,6 +32,10 @@ export class micInput {
     }
 
     async init() {
+        // Resume AudioContext — browsers suspend it until a user gesture has occurred
+        if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+        }
         this.stream = await getMicAccess();
         if (this.stream) {
             const source = this.audioContext.createMediaStreamSource(this.stream);

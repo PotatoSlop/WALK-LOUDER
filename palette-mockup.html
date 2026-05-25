@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+  canvas { image-rendering: pixelated; border: 1px solid #111; }
+</style>
+</head>
+<body>
+<canvas id="c" width="320" height="240"></canvas>
+<script>
+const canvas = document.getElementById('c');
+canvas.style.width = '960px';
+canvas.style.height = '720px';
+const ctx = canvas.getContext('2d');
+
+const PAL = {
+  bg:           '#08080A',
+  bgTexture:    '#0C0C0F',
+  platFill:     '#141418',
+  platOutline:  '#2E2E36',
+  hazard:       '#CC1133',
+  key:          '#DDAA22',
+  doorFill:     '#1E1E24',
+  doorOutline:  '#2E2E36',
+  switchOff:    '#1A1A1E',
+  switchOn:     '#666666',
+  playerBody:   '#DD2233',
+  playerHair:   '#FFCC00',
+  playerSkin:   '#FF88AA',
+  playerBoots:  '#1A6666',
+  playerPants:  '#2288CC',
+};
+
+// Background
+ctx.fillStyle = PAL.bg;
+ctx.fillRect(0, 0, 320, 240);
+for (let x = 0; x < 320; x += 2) {
+  for (let y = 0; y < 240; y += 2) {
+    if (Math.random() < 0.04) {
+      ctx.fillStyle = PAL.bgTexture;
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+}
+
+// CRT scanlines
+for (let y = 0; y < 240; y += 2) {
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.fillRect(0, y, 320, 1);
+}
+
+function drawPlatform(x, y, w, h) {
+  // Outline
+  ctx.fillStyle = PAL.platOutline;
+  ctx.fillRect(x, y, w, h);
+  // Fill inset by 1px
+  ctx.fillStyle = PAL.platFill;
+  ctx.fillRect(x+1, y+1, w-2, h-2);
+}
+
+function drawHazard(x, y) {
+  ctx.fillStyle = PAL.hazard;
+  ctx.fillRect(x+3, y-4, 2, 2);
+  ctx.fillRect(x+2, y-2, 4, 2);
+  ctx.fillRect(x+1, y, 6, 2);
+  ctx.fillRect(x, y+2, 8, 2);
+}
+
+function drawKey(x, y) {
+  // Key shape - head + shaft + teeth
+  ctx.fillStyle = PAL.key;
+  // Head (ring)
+  ctx.fillRect(x, y, 6, 6);
+  ctx.fillStyle = PAL.bg;
+  ctx.fillRect(x+2, y+2, 2, 2);
+  // Shaft
+  ctx.fillStyle = PAL.key;
+  ctx.fillRect(x+6, y+2, 6, 2);
+  // Teeth
+  ctx.fillRect(x+10, y+4, 2, 2);
+  ctx.fillRect(x+7, y+4, 2, 2);
+}
+
+function drawDoor(x, y) {
+  // Arched rectangle - outline with dark fill
+  ctx.fillStyle = PAL.doorOutline;
+  ctx.fillRect(x, y+4, 14, 20);
+  // Arch top
+  ctx.fillRect(x+2, y+2, 10, 2);
+  ctx.fillRect(x+4, y, 6, 2);
+  // Dark fill
+  ctx.fillStyle = PAL.doorFill;
+  ctx.fillRect(x+1, y+5, 12, 18);
+  ctx.fillRect(x+3, y+3, 8, 2);
+  ctx.fillRect(x+5, y+1, 4, 2);
+}
+
+function drawSwitch(x, y, on) {
+  ctx.fillStyle = on ? PAL.switchOn : PAL.switchOff;
+  ctx.fillRect(x, y, 8, 4);
+  ctx.fillStyle = on ? PAL.key : '#333333';
+  ctx.fillRect(x+3, y+1, 2, 2);
+}
+
+function drawPlayer(x, y) {
+  ctx.fillStyle = PAL.playerHair;
+  ctx.fillRect(x+1, y, 8, 5);
+  ctx.fillStyle = PAL.playerSkin;
+  ctx.fillRect(x+2, y+3, 5, 3);
+  ctx.fillStyle = PAL.playerBody;
+  ctx.fillRect(x+1, y+6, 8, 6);
+  ctx.fillStyle = PAL.playerPants;
+  ctx.fillRect(x+1, y+12, 3, 4);
+  ctx.fillRect(x+6, y+12, 3, 4);
+  ctx.fillStyle = PAL.playerBoots;
+  ctx.fillRect(x, y+16, 4, 3);
+  ctx.fillRect(x+6, y+16, 4, 3);
+}
+
+// === Scene ===
+
+// Ground
+drawPlatform(0, 200, 320, 40);
+
+// Floating platforms
+drawPlatform(40, 160, 48, 8);
+drawPlatform(120, 140, 48, 8);
+drawPlatform(210, 120, 56, 8);
+drawPlatform(260, 170, 36, 8);
+
+// Hazards
+for (let i = 0; i < 3; i++) {
+  drawHazard(140 + i*10, 194);
+}
+drawHazard(210, 114);
+
+// Keys - now readable as key shapes
+drawKey(56, 150);
+drawKey(240, 110);
+
+// Doors - arched, subtle
+drawDoor(290, 176);
+drawDoor(24, 176);
+
+// Switches
+drawSwitch(130, 134, false);
+drawSwitch(75, 194, true);
+
+// Player
+drawPlayer(50, 140);
+
+// === Swatches ===
+const swatches = [
+  { label: 'Platform',  colors: [PAL.platFill, PAL.platOutline] },
+  { label: 'Hazard',    colors: [PAL.hazard] },
+  { label: 'Key',       colors: [PAL.key] },
+  { label: 'Door',      colors: [PAL.doorFill, PAL.doorOutline] },
+  { label: 'Switch',    colors: [PAL.switchOff, PAL.switchOn] },
+];
+
+ctx.fillStyle = 'rgba(0,0,0,0.8)';
+ctx.fillRect(200, 4, 116, 68);
+ctx.font = '5px monospace';
+swatches.forEach((s, i) => {
+  const sy = 8 + i * 13;
+  ctx.fillStyle = '#555';
+  ctx.fillText(s.label, 204, sy + 5);
+  s.colors.forEach((c, j) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(254 + j * 14, sy, 10, 8);
+  });
+});
+</script>
+</body>
+</html>

@@ -5,6 +5,7 @@ export class Door extends Phaser.GameObjects.Rectangle {
     keyType: string | null;
     isLocked: boolean;
     targetLevel: string;
+    tileSprite: Phaser.GameObjects.Image | null = null;
 
     constructor(
         scene: Phaser.Scene,
@@ -12,7 +13,7 @@ export class Door extends Phaser.GameObjects.Rectangle {
         width: number, height: number,
         isLocked: boolean = false,
         keyType: string | null = null,
-        targetLevel: string = ''
+        targetLevel: string = '' // For level transition doors, the name of the level to load when the player enters
     ) {
         super(scene, x, y, width, height, 0x0000ff);
         scene.add.existing(this);

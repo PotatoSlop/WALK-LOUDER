@@ -1,33 +1,71 @@
 import Phaser from 'phaser';
-import {micInput} from '../systems/MicInput';
+import { micInput } from '../systems/MicInput';
 
 export class CalibrationScene extends Phaser.Scene {
     mic!: micInput;
-    instructionText!: Phaser.GameObjects.Text;
-    countdownText!: Phaser.GameObjects.Text;
+    private overlay!: HTMLDivElement;
+    private instructionEl!: HTMLDivElement;
+    private countdownEl!: HTMLDivElement;
 
     constructor() {
-        super({key: 'calibration'});
+        super({ key: 'calibration' });
     }
 
-    init(data: {mic: micInput}) {
+    init(data: { mic: micInput }) {
         this.mic = data.mic;
     }
 
     create() {
-        this.add.rectangle(400, 300, 800, 600, 0x000000, 0.75);
+        // Match game scene zoom so the dim overlay covers the full view
+        this.cameras.main.setZoom(4);
 
-        this.instructionText = this.add.text(400, 260, '', {
-            fontSize: '26px',
+        // Dim background (rendered in game canvas)
+        this.add.rectangle(120, 80, 240, 160, 0x000000, 0.75);
+
+        // DOM overlay — renders at native screen resolution
+        this.overlay = document.createElement('div');
+        this.overlay.id = 'calibration-overlay';
+        Object.assign(this.overlay.style, {
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            zIndex: '1001',
+        });
+
+        this.instructionEl = document.createElement('div');
+        Object.assign(this.instructionEl.style, {
+            fontFamily: 'monospace',
+            fontSize: '18px',
             color: '#ffffff',
-            align: 'center',
-        }).setOrigin(0.5);
+            textAlign: 'center',
+            whiteSpace: 'pre-line',
+            marginBottom: '16px',
+        });
 
-        this.countdownText = this.add.text(400, 340, '', {
-            fontSize: '52px',
+        this.countdownEl = document.createElement('div');
+        Object.assign(this.countdownEl.style, {
+            fontFamily: 'monospace',
+            fontSize: '36px',
             color: '#ffff00',
-            align: 'center',
-        }).setOrigin(0.5);
+            textAlign: 'center',
+        });
+
+        this.overlay.appendChild(this.instructionEl);
+        this.overlay.appendChild(this.countdownEl);
+
+        const canvas = this.game.canvas;
+        const parent = canvas.parentElement!;
+        parent.style.position = 'relative';
+        parent.appendChild(this.overlay);
+
+        this.events.on('shutdown', () => this.overlay?.remove());
 
         this.runCalibration();
     }
@@ -37,19 +75,19 @@ export class CalibrationScene extends Phaser.Scene {
         if (phase === 'noise' || phase === 'peak') {
             const elapsed = performance.now() - this.mic.calibrationStartTime;
             const remaining = Math.max(0, (3000 - elapsed) / 1000);
-            this.countdownText.setText(remaining.toFixed(1));
+            this.countdownEl.textContent = remaining.toFixed(1);
         }
     }
 
     private async runCalibration() {
-        this.instructionText.setText('Stay quiet...\nCalibrating noise floor');
+        this.instructionEl.textContent = 'Stay quiet...\nCalibrating noise floor';
         await this.mic.calibrateNoise();
 
-        this.instructionText.setText('Make some noise!\nCalibrating peak volume');
+        this.instructionEl.textContent = 'Make some noise!\nCalibrating peak volume';
         await this.mic.calibratePeak();
 
-        this.instructionText.setText('Calibration complete!');
-        this.countdownText.setText('');
+        this.instructionEl.textContent = 'Calibration complete!';
+        this.countdownEl.textContent = '';
 
         this.time.delayedCall(1000, () => this.scene.stop());
     }
