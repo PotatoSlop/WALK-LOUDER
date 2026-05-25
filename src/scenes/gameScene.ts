@@ -273,6 +273,9 @@ export class GameScene extends Phaser.Scene {
                 if (obj.gid) this.addTileSprite(obj.gid, obj.x!, obj.y!, rot);
                 const spike = new Hazard(this, cx, cy, w, h, true);
                 if (obj.gid) spike.setAlpha(0);
+                // Trim corner false positives — spike texture is a triangle, not a full tile.
+                // Uniform shrink so the fix works for any rotation (up/down/left/right-pointing spikes).
+                (spike.body as Phaser.Physics.Arcade.StaticBody).setSize(w * 0.75, h * 0.75);
                 this.hazardGroup.add(spike);
                 break;
             }
