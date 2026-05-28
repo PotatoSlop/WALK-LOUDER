@@ -61,8 +61,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     init(data: { levelId?: string }) {
-        this.currentLevelId = data.levelId ?? 'level08';
+        this.currentLevelId = data.levelId ?? 'level01';
         this.transitioning = false;
+        // hint is emitted in create() after UIScene is launched and listening
     }
 
     preload() {
@@ -185,6 +186,7 @@ export class GameScene extends Phaser.Scene {
                 }
                 this.transitioning = true;
                 this.switchLevel(doorObj.targetLevel);
+                this.game.events.emit('level-changed', doorObj.targetLevel.slice(-2));
             });
         }
 
@@ -208,6 +210,17 @@ export class GameScene extends Phaser.Scene {
 
         if (this.scene.isActive('volumeBar')) this.scene.stop('volumeBar');
         this.scene.launch('volumeBar');
+
+        if (this.scene.isActive('ui')) this.scene.stop('ui');
+        this.scene.launch('ui');
+
+        // Emit after a 1-frame delay so UIScene.create() has run and listeners are set up
+        this.time.delayedCall(0, () => {
+            this.game.events.emit('level-changed', this.currentLevelId.slice(-2));
+            if (this.currentLevelId === 'level01') {
+                this.game.events.emit('show-hint', 'arrow-keys');
+            }
+        });
     }
 
     // Helpers 

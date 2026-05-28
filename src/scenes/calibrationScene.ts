@@ -41,7 +41,7 @@ export class CalibrationScene extends Phaser.Scene {
 
         this.instructionEl = document.createElement('div');
         Object.assign(this.instructionEl.style, {
-            fontFamily: 'monospace',
+            fontFamily: "'Press Start 2P', monospace",
             fontSize: '18px',
             color: '#ffffff',
             textAlign: 'center',
@@ -51,7 +51,7 @@ export class CalibrationScene extends Phaser.Scene {
 
         this.countdownEl = document.createElement('div');
         Object.assign(this.countdownEl.style, {
-            fontFamily: 'monospace',
+            fontFamily: "'Press Start 2P', monospace",
             fontSize: '36px',
             color: '#ffff00',
             textAlign: 'center',
