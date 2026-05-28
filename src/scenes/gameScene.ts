@@ -6,6 +6,7 @@ import { Hazard } from '../objects/hazards';
 import { Key } from '../objects/key';
 import { MovingPlatform } from '../objects/movingPlatform';
 import { Switch } from '../objects/switches';
+import { VolumeBarScene, volumeToTintColor } from './volumeBarScene';
 
 // Door tile GIDs — determines lock behaviour
 const DOOR_LOCKED_GID = 378;        // door body with handle → locked
@@ -25,6 +26,16 @@ const TURRET_TILE_GIDS = [36, 37, 56, 57];
 // Trigger spike animation frames — retracted (92) → fully extended (152)
 const TRIGGER_SPIKE_FRAMES = [92, 112, 132, 152];
 
+// Trigger spike sequence — [frameIndex, dwellMs, isDangerous]
+const TRIGGER_SPIKE_SEQUENCE: [number, number, boolean][] = [
+    [0, 1000, false],  // retracted — safe
+    [1,  80, false ],  // extending
+    [2,  80, true ],  // extending
+    [3, 500, true ],  // fully extended
+    [2,  80, true ],  // retracting
+    [1,  80, false ],  // retracting
+];
+
 // Camera zoom factor — canvas runs at 960×640, world stays 240×160
 const CAMERA_ZOOM = 4;
 
@@ -37,17 +48,20 @@ export class GameScene extends Phaser.Scene {
     doorGroup: any;
     itemGroup: any;
     switchGroup: any;
+    bulletGroup: any;
     mic: any;
 
     private currentLevelId: string = 'level01';
     private transitioning: boolean = false;
+    private mapHeightInPixels: number = 0;
+    private debugKey!: Phaser.Input.Keyboard.Key;
 
     constructor() {
         super({ key: 'main' });
     }
 
     init(data: { levelId?: string }) {
-        this.currentLevelId = data.levelId ?? 'level01';
+        this.currentLevelId = data.levelId ?? 'level08';
         this.transitioning = false;
     }
 
@@ -55,6 +69,7 @@ export class GameScene extends Phaser.Scene {
         this.load.tilemapTiledJSON(this.currentLevelId, `assets/data/levels/${this.currentLevelId}.tmj`);
         this.load.image('tiles', 'assets/walk-louder-tile-sheet.png');
         this.load.spritesheet('tileSprites', 'assets/walk-louder-tile-sheet.png', { frameWidth: 8, frameHeight: 8 });
+        this.load.spritesheet('player', 'assets/walkter-Sheet.png', { frameWidth: 8, frameHeight: 16 });
     }
 
     create() {
@@ -64,6 +79,7 @@ export class GameScene extends Phaser.Scene {
         this.itemGroup     = this.add.group();
         this.switchGroup   = this.add.group();
         this.platformGroup = this.add.group();
+        this.bulletGroup = this.add.group();
 
         // Tilemap
         const map = this.make.tilemap({ key: this.currentLevelId });
@@ -75,18 +91,42 @@ export class GameScene extends Phaser.Scene {
         this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
         this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
         this.cameras.main.setZoom(CAMERA_ZOOM);
+        this.mapHeightInPixels = map.heightInPixels;
 
-        // ── Spawn player ──────────────────────────────────────────────
+        Phaser.Actions.AddEffectBloom(this.cameras.main, {
+            threshold: 0.3,    // only pixels brighter than this glow (pixel art smears fast at lower values)
+            blurRadius: 3,     // how far the glow spreads
+            blurSteps: 4,      // blur quality (higher = smoother, slower)
+            blendAmount: 0.8,  // bloom strength (lower = subtler)
+        });
+
+        this.cameras.main.filters!.external.addBarrel(1.05);          // >1 bulge, <1 pinch, 1 = flat
+        this.cameras.main.filters!.external.addVignette(             // x, y, radius, strength
+            0.5, 0.5, 0.75, 0.1,
+        );
+
+        // Spawn player
         const spawnLayer = map.getObjectLayer('Spawn');
         const sp = spawnLayer!.objects[0];
         const spawnX = sp.x! + sp.width! / 2;
         const spawnY = (sp.gid ? sp.y! - sp.height! : sp.y!) + sp.height! / 2;
         this.player = new Player(this, spawnX, spawnY);
+        this.player.setTintMode(Phaser.TintModes.FILL);
         this.player.levelStartX = spawnX;
         this.player.levelStartY = spawnY;
+        this.player.Body.onWorldBounds = true;
+        this.physics.world.on('worldbounds', (body: Phaser.Physics.Arcade.Body, up: boolean, down: boolean) => {
+            if (body.gameObject === this.player && down) {
+                this.player.death();
+            }
+        });
 
-        // ── Index every Tiled object by id so saws can reference endpoint markers
-        // by `endTarget` (Tiled's "Object" property type stores the target id as a number)
+        this.events.on('playerDeath', () => {
+            if (this.transitioning) return;
+            this.transitioning = true;
+            this.switchLevel(this.currentLevelId);
+        });
+
         const objectById = new Map<number, Phaser.Types.Tilemaps.TiledObject>();
         for (const layer of map.objects ?? []) {
             for (const obj of layer.objects) {
@@ -94,7 +134,7 @@ export class GameScene extends Phaser.Scene {
             }
         }
 
-        // ── Spawn interactables first — switches must exist before hazards link to them
+        // Spawn interactables first
         const switchById = new Map<number, Switch>();
         const doorByX = new Map<number, Door>();
         const interLayer = map.getObjectLayer('Interactables');
@@ -108,9 +148,7 @@ export class GameScene extends Phaser.Scene {
             for (const obj of hazardLayer.objects) this.spawnHazard(obj, switchById, objectById);
         }
 
-        // ── Collision callbacks ────────────────────────────────────────
-        // Per-object overlaps — bypasses Phaser's group-level canCollide gate
-        // which silently blocks all overlap checks on plain groups.
+        //  Collision callbacks
         this.physics.add.collider(this.player, platformLayer!);
 
         for (const h of this.hazardGroup.getChildren()) {
@@ -131,16 +169,17 @@ export class GameScene extends Phaser.Scene {
         for (const d of this.doorGroup.getChildren()) {
             this.physics.add.overlap(this.player, d, (p, door) => {
                 if (this.transitioning) return;
+
                 const doorObj = door as Door;
                 const player = p as Player;
+
                 if (doorObj.isLocked) {
                     doorObj.open(player.items);
                     if (!doorObj.isLocked) {
                         doorObj.tileSprite?.setFrame(DOOR_UNLOCKED_GID - 1);
                         doorObj.topSprite?.setFrame(DOOR_UNLOCKED_TOP_GID - 1);
-                        // Unlock animation pause — let the player see the sprite swap before transition
                         this.transitioning = true;
-                        this.time.delayedCall(300, () => this.switchLevel(doorObj.targetLevel));
+                        this.time.delayedCall(500, () => this.switchLevel(doorObj.targetLevel));
                     }
                     return;
                 }
@@ -153,10 +192,13 @@ export class GameScene extends Phaser.Scene {
             this.physics.add.overlap(this.player, s, (_p, sw) => (sw as Switch).onOverlap());
         }
 
-        // ── Input ─────────────────────────────────────────────────────
-        this.cursors = this.input.keyboard!.createCursorKeys();
+        this.physics.add.collider(this.bulletGroup, platformLayer! || this.player, bullet => bullet.destroy());
+        this.physics.add.overlap(this.player, this.bulletGroup, p => (p as Player).death());
 
-        // ── Mic ───────────────────────────────────────────────────────
+        this.cursors = this.input.keyboard!.createCursorKeys();
+        this.debugKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+
+        // Mic 
         if (!this.mic) {
             this.mic = new micInput();
             this.mic.init().then(() => {
@@ -164,16 +206,11 @@ export class GameScene extends Phaser.Scene {
             });
         }
 
-        if (this.scene.isActive('debug')) this.scene.stop('debug');
-        this.scene.launch('debug');
+        if (this.scene.isActive('volumeBar')) this.scene.stop('volumeBar');
+        this.scene.launch('volumeBar');
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────
-
-    /**
-     * Place a tile sprite from the spritesheet.
-     * Uses Tiled's raw (x, y) — bottom-left origin for tile objects.
-     */
+    // Helpers 
     private addTileSprite(
         gid: number,
         tiledX: number,
@@ -181,7 +218,6 @@ export class GameScene extends Phaser.Scene {
         rotation: number = 0
     ): Phaser.GameObjects.Image {
         const img = this.add.image(tiledX, tiledY, 'tileSprites', gid - 1);
-        // Tile objects in Tiled use bottom-left as their anchor point
         img.setOrigin(0, 1);
         if (rotation !== 0) {
             img.setAngle(rotation);
@@ -190,17 +226,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     private getTiledProp<T = any>(
-        obj: Phaser.Types.Tilemaps.TiledObject,
-        name: string
-    ): T | undefined {
+        obj: Phaser.Types.Tilemaps.TiledObject, name: string): T | undefined {
         const prop = obj.properties?.find((p: any) => p.name === name);
         return prop?.value;
     }
 
-    /**
-     * Compute world-space center + size for a Tiled object.
-     * Tile objects (with gid) anchor at bottom-left; rectangles anchor at top-left.
-     */
     private objectGeometry(obj: Phaser.Types.Tilemaps.TiledObject) {
         const w = obj.width!;
         const h = obj.height!;
@@ -224,7 +254,7 @@ export class GameScene extends Phaser.Scene {
         switchById: Map<number, Switch>,
         doorByX: Map<number, Door>
     ) {
-        const type = this.getTiledProp<string>(obj, 'type');
+        const type = this.getTiledProp<string>(obj, 'type') ?? obj.type;
         const { cx, cy, w, h } = this.objectGeometry(obj);
         const sprite = obj.gid ? this.addTileSprite(obj.gid, obj.x!, obj.y!) : null;
 
@@ -275,23 +305,50 @@ export class GameScene extends Phaser.Scene {
         switchById: Map<number, Switch>,
         objectById: Map<number, Phaser.Types.Tilemaps.TiledObject>
     ) {
-        const type = this.getTiledProp<string>(obj, 'type');
+        const type = this.getTiledProp<string>(obj, 'type') ?? obj.type;
         const { cx, cy, w, h, rot } = this.objectGeometry(obj);
 
         switch (type) {
             case 'spike': {
+                const spikeSwitchId = this.getTiledProp<number>(obj, 'linkedSwitchId');
+                if (!obj.gid && spikeSwitchId !== undefined) {
+                    // No tile sprite + switch linked → animated trigger-spike driven by lever
+                    const sw = switchById.get(spikeSwitchId);
+                    if (sw) {
+                        const startEnabled = this.getTiledProp<boolean>(obj, 'enabled') ?? true;
+                        this.spawnSwitchDrivenSpike(cx, cy, w, h, sw, startEnabled);
+                    }
+                    break;
+                }
                 if (obj.gid) this.addTileSprite(obj.gid, obj.x!, obj.y!, rot);
                 const spike = new Hazard(this, cx, cy, w, h, true);
-                if (obj.gid) spike.setAlpha(0);
-                // Trim corner false positives — spike texture is a triangle, not a full tile.
-                // Uniform shrink so the fix works for any rotation (up/down/left/right-pointing spikes).
-                (spike.body as Phaser.Physics.Arcade.StaticBody).setSize(w * 0.75, h * 0.75);
+                spike.setAlpha(0);
+                // Hitbox shrink only for tile-based spikes — triangle texture, not a full tile.
+                if (obj.gid) (spike.body as Phaser.Physics.Arcade.StaticBody).setSize(6, h * 0.75);
+                if (spikeSwitchId !== undefined) {
+                    const sw = switchById.get(spikeSwitchId);
+                    if (sw) {
+                        const startEnabled = this.getTiledProp<boolean>(obj, 'enabled') ?? true;
+                        spike.linkSwitch(sw, startEnabled);
+                        spike.setEnabled(startEnabled);
+                    }
+                }
                 this.hazardGroup.add(spike);
                 break;
             }
-            case 'trigger_spike':
-                this.spawnTriggerSpike(cx, cy, w, h);
+            case 'trigger_spike': {
+                const spikeSwitchId = this.getTiledProp<number>(obj, 'linkedSwitchId');
+                if (spikeSwitchId !== undefined) {
+                    const sw = switchById.get(spikeSwitchId);
+                    if (sw) {
+                        const startEnabled = this.getTiledProp<boolean>(obj, 'enabled') ?? true;
+                        this.spawnSwitchDrivenSpike(cx, cy, w, h, sw, startEnabled);
+                    }
+                } else {
+                    this.spawnTriggerSpike(cx, cy, w, h, this.getTiledProp<number>(obj, 'offTime'));
+                }
                 break;
+            }
             case 'saw':
                 this.spawnSaw(obj, cx, cy, switchById, objectById);
                 break;
@@ -301,7 +358,7 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    private spawnTriggerSpike(cx: number, cy: number, w: number, h: number) {
+    private spawnTriggerSpike(cx: number, cy: number, w: number, h: number, offTime?: number) {
         const tileCount = Math.max(1, Math.round(w / 8));
         const container = this.add.container(cx, cy).setDepth(50);
         const tiles: Phaser.GameObjects.Image[] = [];
@@ -310,21 +367,73 @@ export class GameScene extends Phaser.Scene {
             container.add(t);
             tiles.push(t);
         }
-        let frame = 0;
-        let forward = true;
-        this.time.addEvent({
-            delay: 250,
-            loop: true,
-            callback: () => {
-                if (forward) { frame++; if (frame >= TRIGGER_SPIKE_FRAMES.length - 1) forward = false; }
-                else         { frame--; if (frame <= 0) forward = true; }
-                tiles.forEach(t => t.setFrame(TRIGGER_SPIKE_FRAMES[frame] - 1));
-            },
-        });
 
         const hazard = new Hazard(this, cx, cy, w, h, true);
         hazard.setAlpha(0);
         hazard.tileSprite = container;
+        // Start safe — body disabled until first dangerous frame
+        (hazard.body as any).enable = false;
+
+        let step = 0;
+        const tick = () => {
+            const [frameIdx, baseDwell, dangerous] = TRIGGER_SPIKE_SEQUENCE[step];
+            const dwell = (step === 0 && offTime !== undefined) ? offTime : baseDwell;
+            tiles.forEach(t => t.setFrame(TRIGGER_SPIKE_FRAMES[frameIdx] - 1));
+            (hazard.body as any).enable = dangerous;
+            step = (step + 1) % TRIGGER_SPIKE_SEQUENCE.length;
+            this.time.delayedCall(dwell, tick);
+        };
+        tick();
+
+        this.hazardGroup.add(hazard);
+    }
+
+    private spawnSwitchDrivenSpike(
+        cx: number, cy: number, w: number, h: number,
+        sw: Switch, startEnabled: boolean
+    ) {
+        const tileCount = Math.max(1, Math.round(w / 8));
+        const container = this.add.container(cx, cy).setDepth(50);
+        const tiles: Phaser.GameObjects.Image[] = [];
+        for (let i = 0; i < tileCount; i++) {
+            const img = this.add.image(
+                (i - (tileCount - 1) / 2) * 8, 0,
+                'tileSprites', TRIGGER_SPIKE_FRAMES[startEnabled ? 3 : 0] - 1
+            );
+            container.add(img);
+            tiles.push(img);
+        }
+
+        const hazard = new Hazard(this, cx, cy, w, h, true);
+        hazard.setAlpha(0);
+        (hazard.body as any).enable = startEnabled;
+
+        const setFrame = (fi: number) => tiles.forEach(t => t.setFrame(TRIGGER_SPIKE_FRAMES[fi] - 1));
+
+        const runSeq = (seq: [number, number][], dangerousFromStep: number) => {
+            let step = 0;
+            const tick = () => {
+                const [fi, dwell] = seq[step];
+                setFrame(fi);
+                (hazard.body as any).enable = step >= dangerousFromStep;
+                if (++step < seq.length && dwell > 0) this.time.delayedCall(dwell, tick);
+            };
+            tick();
+        };
+
+        let prevPowered = sw.powered;
+        this.events.on('update', () => {
+            if (sw.powered === prevPowered) return;
+            prevPowered = sw.powered;
+            const nowEnabled = sw.powered !== startEnabled;
+            if (nowEnabled) {
+                runSeq([[1, 80], [2, 80], [3, 0]], 1);
+            } else {
+                (hazard.body as any).enable = false;
+                runSeq([[2, 80], [1, 80], [0, 0]], 99);
+            }
+        });
+
         this.hazardGroup.add(hazard);
     }
 
@@ -334,19 +443,16 @@ export class GameScene extends Phaser.Scene {
         switchById: Map<number, Switch>,
         objectById: Map<number, Phaser.Types.Tilemaps.TiledObject>
     ) {
-        // Two ways to set the end position:
-        //   1. `endTarget` (Object reference) — points at an endpoint marker drawn in Tiled
-        //      (preferred — visual + lets you move the endpoint without touching properties)
-        //   2. `endX`/`endY` literal numbers — fallback for hazards without a marker
-        // endTarget wins if both are present.
         const endTargetId = this.getTiledProp<number>(obj, 'endTarget');
         let endX: number | undefined;
         let endY: number | undefined;
         if (endTargetId !== undefined) {
             const target = objectById.get(endTargetId);
             if (target) {
+                // endTarget is placed at the bottom-left corner of the destination tile cell;
+                // subtract half a tile height to get the saw's center-to-center travel target.
                 endX = target.x! + (target.width ?? 0) / 2;
-                endY = target.y! + (target.height ?? 0) / 2;
+                endY = target.y! - 4;
             }
         }
         endX ??= this.getTiledProp<number>(obj, 'endX') ?? cx;
@@ -364,7 +470,7 @@ export class GameScene extends Phaser.Scene {
         }
         let f = 0;
         this.time.addEvent({
-            delay: 150,
+            delay: 100,
             loop: true,
             callback: () => {
                 f = (f + 1) % SAW_ANIM_FRAMES.length;
@@ -410,27 +516,31 @@ export class GameScene extends Phaser.Scene {
         const turret = new Hazard(this, cx, cy, 16, 16, true);
         turret.setAlpha(0);
         turret.tileSprite = container;
+        turret.direction = direction as 'left' | 'right';
         this.hazardGroup.add(turret);
+        
+
+        this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => turret.shoot(),
+        });
     }
 
     switchLevel(levelId: string) {
         this.scene.restart({ levelId });
     }
 
-    // ── Game loop ──────────────────────────────────────────────────────
+    // Game loop 
 
     update(_time: number, delta: number) {
-        var debugKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
-
-        const vol = debugKey.isDown ? 0.8 : (this.mic?.smoothedVolume() ?? 0);
+        const vol = this.debugKey.isDown ? 0.8 : (this.mic?.smoothedVolume() ?? 0);
 
         if (this.cursors.left.isDown) {
             this.player.moveLeft(vol);
         } else if (this.cursors.right.isDown) {
             this.player.moveRight(vol);
         } else {
-            // Bleed speed whether airborne or grounded — heavier on ground,
-            // light in air so the landing transition isn't a hard cliff.
             const friction = this.player.Body.blocked.down ? 0.82 : 0.97;
             this.player.setSpeedMultiplier(friction);
         }
@@ -453,6 +563,30 @@ export class GameScene extends Phaser.Scene {
         if (this.cursors.up.isUp && this.player.Body.velocity.y < 0 && !boostActive) {
             this.player.Body.setVelocityY(this.player.Body.velocity.y * 0.85);
         }
+
+        // Player animation 
+        const isGrounded = this.player.Body.blocked.down;
+        const vy = this.player.Body.velocity.y;
+        const vx = Math.abs(this.player.Body.velocity.x);
+        if (!isGrounded) {
+            this.player.anims.timeScale = 1;
+            if (vy < 0) {
+                this.player.play('player_jump', true);
+            } else {
+                this.player.play('player_fall', true);
+            }
+        } else if (vx > 5) {
+            this.player.play('player_walk', true);
+            this.player.anims.timeScale = (10 + vol * 18) / 10;
+        } else {
+            this.player.stop();
+            this.player.setFrame(0);
+        }
+        this.player.setFlipX(this.player.facing === 'left');
+
+        const barScene = this.scene.get('volumeBar') as VolumeBarScene | undefined;
+        const tintVol = barScene?.displayedVol ?? 0;
+        this.player.setTint(volumeToTintColor(tintVol));
 
         this.switchGroup.getChildren().forEach((s: Phaser.GameObjects.GameObject) => (s as Switch).tick());
         this.hazardGroup.getChildren().forEach((h: Phaser.GameObjects.GameObject) => (h as Hazard).update());

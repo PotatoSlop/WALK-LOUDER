@@ -1,8 +1,6 @@
 import Phaser from 'phaser';
-import { Hazard } from './hazards';
+import { Hazard, Vec2 } from './hazards';
 import { Switch } from './switches';
-
-type Vec2 = { x: number; y: number };
 
 export class MovingPlatform extends Phaser.GameObjects.Rectangle {
     Body: Phaser.Physics.Arcade.Body;

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-export class Player extends Phaser.GameObjects.Rectangle {
+export class Player extends Phaser.GameObjects.Sprite {
     facing: 'right' | 'left' = 'right';
     isJumping: boolean = false;
     isFalling: boolean = false;
@@ -14,12 +14,12 @@ export class Player extends Phaser.GameObjects.Rectangle {
     jumpBoostWindow: number = 150;
     peakVolume: number = 0;
 
-    // ==================================== Params for Movement ====================================
-    BASE_MOVEMENT_SPEED: number = 30;
-    MAX_SPEED_MULT: number = 5;
+    // Params for Movement 
+    BASE_MOVEMENT_SPEED: number = 40;
+    MAX_SPEED_MULT: number = 3;
 
-    BASE_JUMP: number = -135;
-    VOCAL_BOOST: number = 160;
+    BASE_JUMP: number = -150;
+    VOCAL_BOOST: number = 100;
 
     // Coyote Timing / Jump Buffering
     lastGroundedTime: number = 0;
@@ -29,14 +29,39 @@ export class Player extends Phaser.GameObjects.Rectangle {
     JumpBufferTime: number = this.CoyoteTime;
 
     constructor(scene: Phaser.Scene, x: number, y: number, items: string[] = []) {
-        super(scene, x, y, 8, 12, 0x00ff00);
+        super(scene, x, y, 'player', 0);
         scene.add.existing(this);
         scene.physics.add.existing(this);
         this.Body = this.body as Phaser.Physics.Arcade.Body;
-        this.Body.setSize(8, 12);
+        this.Body.setSize(4, 15);
         this.Body.setDragY(27);
         this.Body.setCollideWorldBounds(true);
         this.setDepth(100);
+
+        if (!scene.anims.exists('player_walk')) {
+            scene.anims.create({
+                key: 'player_walk',
+                frames: scene.anims.generateFrameNumbers('player', { start: 0, end: 5 }),
+                frameRate: 12,
+                repeat: -1,
+            });
+        }
+        if (!scene.anims.exists('player_jump')) {
+            scene.anims.create({
+                key: 'player_jump',
+                frames: scene.anims.generateFrameNumbers('player', { start: 6, end: 7 }),
+                frameRate: 12,
+                repeat: 0,
+            });
+        }
+        if (!scene.anims.exists('player_fall')) {
+            scene.anims.create({
+                key: 'player_fall',
+                frames: scene.anims.generateFrameNumbers('player', { frames: [8] }),
+                frameRate: 1,
+                repeat: -1,
+            });
+        }
     }
 
     moveLeft(volume: number) {
@@ -78,6 +103,7 @@ export class Player extends Phaser.GameObjects.Rectangle {
     death() {
         this.setPosition(this.levelStartX, this.levelStartY);
         this.Body.setVelocity(0, 0);
+        this.scene.events.emit('playerDeath');
     }
 
 

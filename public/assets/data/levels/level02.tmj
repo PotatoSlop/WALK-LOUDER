@@ -734,6 +734,11 @@
                             "name": "type",
                             "type": "string",
                             "value": "trigger_spike"
+                        },
+                        {
+                            "name": "offTime",
+                            "type": "int",
+                            "value": 2000
                         }
                     ]
                 },

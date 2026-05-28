@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { Switch } from "./switches";
 
-type Vec2 = { x: number; y: number };
+export type Vec2 = { x: number; y: number };
 
 export class Hazard extends Phaser.GameObjects.Rectangle {
     Body!: Phaser.Physics.Arcade.Body;
@@ -10,12 +10,16 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
     powered: boolean = false;
     tileSprite: Phaser.GameObjects.Image | Phaser.GameObjects.Container | null = null;
 
+    direction: 'left' | 'right' | null = null;
+    BULLET_SPEED = 100;
+
     private startPos: Vec2;
     private endPos: Vec2;
     private speed: number;
     private headingToEnd: boolean = true;
     private linkedSwitch: Switch | null = null;
     private switchInverted: boolean = false;
+    private BULLET_OFFSET = 3;
 
     constructor(
         scene: Phaser.Scene,
@@ -61,6 +65,15 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
         } else {
             this.Body.reset(x, y);
         }
+    }
+
+    shoot() {
+        if (this.direction == null || !this.active) return;
+
+        const bullet = new Hazard(this.scene, this.x, this.y + this.BULLET_OFFSET, 2, 2, false);
+        bullet.Body.setVelocity(this.direction  == "left" ? -this.BULLET_SPEED : this.BULLET_SPEED, 0);
+        bullet.Body.setAllowGravity(false);
+        (this.scene as any).bulletGroup.add(bullet);
     }
 
     update() {

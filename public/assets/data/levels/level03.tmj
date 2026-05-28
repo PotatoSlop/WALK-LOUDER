@@ -1,4 +1,4 @@
-﻿{
+{
     "compressionlevel": -1,
     "height": 20,
     "infinite": false,
@@ -800,14 +800,9 @@
                             "value": "saw"
                         },
                         {
-                            "name": "endX",
-                            "type": "int",
-                            "value": 108
-                        },
-                        {
-                            "name": "endY",
-                            "type": "int",
-                            "value": 116
+                            "name": "endTarget",
+                            "type": "object",
+                            "value": 59
                         },
                         {
                             "name": "speed",
@@ -853,6 +848,11 @@
                             "name": "type",
                             "type": "string",
                             "value": "spike"
+                        },
+                        {
+                            "name": "offTime",
+                            "type": "int",
+                            "value": 3000
                         }
                     ]
                 },
@@ -873,6 +873,11 @@
                             "name": "type",
                             "type": "string",
                             "value": "spike"
+                        },
+                        {
+                            "name": "offTime",
+                            "type": "int",
+                            "value": 2000
                         }
                     ]
                 },
@@ -893,6 +898,11 @@
                             "name": "type",
                             "type": "string",
                             "value": "spike"
+                        },
+                        {
+                            "name": "offTime",
+                            "type": "int",
+                            "value": 1000
                         }
                     ]
                 },
@@ -915,6 +925,18 @@
                             "value": "spike"
                         }
                     ]
+                },
+                {
+                    "id": 59,
+                    "name": "",
+                    "rotation": 0,
+                    "type": "endPoint",
+                    "visible": true,
+                    "x": 105,
+                    "y": 120,
+                    "width": 0,
+                    "height": 0,
+                    "point": true
                 }
             ],
             "opacity": 1,
@@ -925,7 +947,7 @@
         }
     ],
     "nextlayerid": 8,
-    "nextobjectid": 59,
+    "nextobjectid": 60,
     "orientation": "orthogonal",
     "renderorder": "right-down",
     "tiledversion": "1.12.1",

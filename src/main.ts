@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import {GameScene} from './scenes/gameScene';
-import {DebugScene} from './scenes/debugScene';
+import {VolumeBarScene} from './scenes/volumeBarScene';
 import {CalibrationScene} from './scenes/calibrationScene';
 
 var config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     width: 960,
     height: 640,
+    backgroundColor: '#0a0a14',
     antialias: false,      // nearest-neighbor filtering — crisp tile edges
     antialiasGL: false,
     roundPixels: false,    // allow sub-pixel positions — smooth movement
@@ -21,7 +22,7 @@ var config: Phaser.Types.Core.GameConfig = {
             debug: false
         }
     },
-    scene: [GameScene, DebugScene, CalibrationScene]
+    scene: [GameScene, VolumeBarScene, CalibrationScene]
 };
 
 var game = new Phaser.Game(config);

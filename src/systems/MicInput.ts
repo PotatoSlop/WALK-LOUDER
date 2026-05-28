@@ -65,6 +65,10 @@ export class micInput {
         return samples;
     }
 
+    getRawVolume(): number {
+        return this.getVolume();
+    }
+
     getNormalizedVolume(): number {
         const range = this.noiseCeiling - this.noiseFloor;
         if (range <= 0) return 0;
