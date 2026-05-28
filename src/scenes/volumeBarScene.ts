@@ -14,9 +14,7 @@ export function volumeToTintColor(t: number): number {
     return Phaser.Display.Color.GetColor(c.r, c.g, c.b);
 }
 
-const SEGMENT_COLORS = Array.from({ length: SEGMENT_COUNT }, (_, i) => {
-    return `hsl(${Math.round(volumeHue(i / (SEGMENT_COUNT - 1)))}, 100%, 50%)`;
-});
+const SEGMENT_COLORS = Array.from({ length: SEGMENT_COUNT }, () => '#ffffff');
 
 const DECAY_HALFLIFE_MS = 500;
 

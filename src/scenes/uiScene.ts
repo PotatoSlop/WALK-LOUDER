@@ -31,7 +31,7 @@ export class UIScene extends Phaser.Scene {
             .text(24, 24, '', {
                 fontFamily: '"Press Start 2P"',
                 fontSize:   '36px',
-                color:      '#ffffff',
+                color:      '#c0c0c0',
             })
             .setVisible(false);
     }
