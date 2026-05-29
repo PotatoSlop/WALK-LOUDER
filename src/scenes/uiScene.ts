@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { getSetting } from '../systems/settingsManager';
 
 // ─── layout constants ────────────────────────────────────────────────────────
 /** logical px per key cell */
@@ -13,6 +14,7 @@ const EDGE_PAD  = 14;
 export class UIScene extends Phaser.Scene {
     private levelText!:     Phaser.GameObjects.Text;
     private controlsHint!:  Phaser.GameObjects.Container;
+    private deathEmitter!:  Phaser.GameObjects.Particles.ParticleEmitter;
 
     constructor() {
         super({ key: 'ui' });
@@ -21,6 +23,7 @@ export class UIScene extends Phaser.Scene {
     create() {
         this.buildLevelDisplay();
         this.buildControlsHint();
+        this.buildDeathEmitter();
         this.registerEvents();
     }
 
@@ -110,6 +113,21 @@ export class UIScene extends Phaser.Scene {
         return c;
     }
 
+    // ── death particles ───────────────────────────────────────────────────────
+
+    private buildDeathEmitter() {
+        this.deathEmitter = this.add.particles(0, 0, '__WHITE', {
+            speed:    { min: 300, max: 700 },
+            angle:    { min: 0, max: 360 },
+            scale:    { start: 7, end: 0 },
+            alpha:    { start: 1, end: 0 },
+            lifespan: { min: 100, max: 200 },
+            gravityY: 180 ,
+            emitting: false,
+        });
+        this.deathEmitter.setDepth(20);
+    }
+
     // ── global event bus ──────────────────────────────────────────────────────
 
     private registerEvents() {
@@ -126,6 +144,16 @@ export class UIScene extends Phaser.Scene {
         // GameScene fires: this.game.events.emit('hide-hint')
         this.game.events.on('hide-hint', () => {
             this.controlsHint.setVisible(false);
+        });
+
+        // GameScene fires: this.game.events.emit('player-death-fx', { x, y, color })
+        this.game.events.on('player-death-fx', ({ x, y, color }: { x: number, y: number, color: number }) => {
+            if (!getSetting('particlesEnabled')) return;
+            const gameCam = this.scene.get('main').cameras.main;
+            const screenX = (x - gameCam.worldView.x) * gameCam.zoom;
+            const screenY = (y - gameCam.worldView.y) * gameCam.zoom;
+            this.deathEmitter.setParticleTint(color);
+            this.deathEmitter.explode(100, screenX, screenY);
         });
     }
 }

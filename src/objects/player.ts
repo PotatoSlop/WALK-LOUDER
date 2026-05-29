@@ -18,8 +18,8 @@ export class Player extends Phaser.GameObjects.Sprite {
     BASE_MOVEMENT_SPEED: number = 40;
     MAX_SPEED_MULT: number = 3;
 
-    BASE_JUMP: number = -150;
-    VOCAL_BOOST: number = 100;
+    BASE_JUMP: number = -180;
+    VOCAL_BOOST: number = 95;
 
     // Coyote Timing / Jump Buffering
     lastGroundedTime: number = 0;
@@ -101,8 +101,6 @@ export class Player extends Phaser.GameObjects.Sprite {
     }
 
     death() {
-        this.setPosition(this.levelStartX, this.levelStartY);
-        this.Body.setVelocity(0, 0);
         this.scene.events.emit('playerDeath');
     }
 

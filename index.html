@@ -26,9 +26,10 @@
         box-shadow: 0 0 40px rgba(48, 48, 48, 0.4);
         filter: brightness(1.05) saturate(1.15);
         display: block;
+        border: 8px solid #565663;
       }
 
-      body::after {
+      body.scanlines-enabled::after {
         content: '';
         position: fixed;
         inset: 0;

@@ -7,6 +7,8 @@ import { Key } from '../objects/key';
 import { MovingPlatform } from '../objects/movingPlatform';
 import { Switch } from '../objects/switches';
 import { VolumeBarScene, volumeToTintColor } from './volumeBarScene';
+import {SettingsScene} from './settings';
+import { getSetting } from '../systems/settingsManager';
 
 // Door tile GIDs — determines lock behaviour
 const DOOR_LOCKED_GID = 378;        // door body with handle → locked
@@ -50,6 +52,11 @@ export class GameScene extends Phaser.Scene {
     switchGroup: any;
     bulletGroup: any;
     mic: any;
+    escKey: any;
+
+    distortionAmount: number = 1.05;
+    private barrelFilter: any;
+    private colorMatrixFilter: any;
 
     private currentLevelId: string = 'level01';
     private transitioning: boolean = false;
@@ -63,7 +70,6 @@ export class GameScene extends Phaser.Scene {
     init(data: { levelId?: string }) {
         this.currentLevelId = data.levelId ?? 'level01';
         this.transitioning = false;
-        // hint is emitted in create() after UIScene is launched and listening
     }
 
     preload() {
@@ -81,6 +87,8 @@ export class GameScene extends Phaser.Scene {
         this.switchGroup   = this.add.group();
         this.platformGroup = this.add.group();
         this.bulletGroup = this.add.group();
+
+        this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
         // Tilemap
         const map = this.make.tilemap({ key: this.currentLevelId });
@@ -101,10 +109,28 @@ export class GameScene extends Phaser.Scene {
             blendAmount: 0.8,  // bloom strength (lower = subtler)
         });
 
-        this.cameras.main.filters!.external.addBarrel(1.05);          // >1 bulge, <1 pinch, 1 = flat
-        this.cameras.main.filters!.external.addVignette(             // x, y, radius, strength
-            0.5, 0.5, 0.75, 0.1,
-        );
+        this.barrelFilter = this.cameras.main.filters!.external.addBarrel(1.05);
+        this.barrelFilter.active = getSetting('barrelEnabled');
+
+        this.colorMatrixFilter = this.cameras.main.filters!.external.addColorMatrix();
+        this.colorMatrixFilter.colorMatrix.saturate((getSetting('saturation') - 50) / 50);
+
+        this.cameras.main.filters!.external.addVignette(0.5, 0.5, 0.75, 0.1);
+
+        // Apply saved scanlines state
+        document.body.classList.toggle('scanlines-enabled', getSetting('scanlinesEnabled'));
+
+        this.game.events.on('setting-changed', ({ key, value }: { key: string, value: any }) => {
+            if (key === 'saturation' && this.colorMatrixFilter) {
+                this.colorMatrixFilter.colorMatrix.saturate((value - 50) / 50);
+            }
+            if (key === 'barrelEnabled' && this.barrelFilter) {
+                this.barrelFilter.active = value;
+            }
+            if (key === 'scanlinesEnabled') {
+                document.body.classList.toggle('scanlines-enabled', value);
+            }
+        });
 
         // Spawn player
         const spawnLayer = map.getObjectLayer('Spawn');
@@ -125,7 +151,19 @@ export class GameScene extends Phaser.Scene {
         this.events.on('playerDeath', () => {
             if (this.transitioning) return;
             this.transitioning = true;
-            this.switchLevel(this.currentLevelId);
+
+            const color = getSetting('bloodMode')
+                ? 0xff0000
+                : this.player.tintTopLeft ?? 0xffffff;
+
+            // Freeze and hide player immediately so particles play at death position
+            this.player.setVisible(false);
+            this.player.Body.setVelocity(0, 0);
+            (this.player.Body as Phaser.Physics.Arcade.Body).setEnable(false);
+
+            this.game.events.emit('player-death-fx', { x: this.player.x, y: this.player.y, color });
+
+            this.time.delayedCall(500, () => this.switchLevel(this.currentLevelId));
         });
 
         const objectById = new Map<number, Phaser.Types.Tilemaps.TiledObject>();
@@ -204,7 +242,8 @@ export class GameScene extends Phaser.Scene {
         if (!this.mic) {
             this.mic = new micInput();
             this.mic.init().then(() => {
-                this.scene.launch('calibration', { mic: this.mic });
+                this.game.registry.set('mic', this.mic);
+                this.scene.launch('calibration');
             });
         }
 
@@ -221,6 +260,8 @@ export class GameScene extends Phaser.Scene {
                 this.game.events.emit('show-hint', 'arrow-keys');
             }
         });
+
+        this.scene.resume();
     }
 
     // Helpers 
@@ -545,9 +586,20 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Game loop 
-
     update(_time: number, delta: number) {
         const vol = this.debugKey.isDown ? 0.8 : (this.mic?.smoothedVolume() ?? 0);
+
+        // Pause Toggle
+        if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
+            if (this.scene.isPaused()) {
+                this.scene.resume();
+                this.scene.stop('settings');
+            }
+            else {
+                this.scene.pause();
+                this.scene.launch('settings');
+            }
+        }
 
         if (this.cursors.left.isDown) {
             this.player.moveLeft(vol);

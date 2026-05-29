@@ -3,6 +3,7 @@ import {GameScene} from './scenes/gameScene';
 import {VolumeBarScene} from './scenes/volumeBarScene';
 import {CalibrationScene} from './scenes/calibrationScene';
 import {UIScene} from './scenes/uiScene';
+import { SettingsScene } from './scenes/settings';
 
 var config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
@@ -23,11 +24,9 @@ var config: Phaser.Types.Core.GameConfig = {
             debug: false
         }
     },
-    scene: [GameScene, UIScene, VolumeBarScene, CalibrationScene]
+    scene: [GameScene, UIScene, VolumeBarScene, CalibrationScene, SettingsScene]
 };
 
-// Defer until web fonts (Press Start 2P) are loaded — Phaser renders text to
-// canvas immediately on create(), so the font must be ready before boot.
 document.fonts.ready.then(() => {
     new Phaser.Game(config);
 });

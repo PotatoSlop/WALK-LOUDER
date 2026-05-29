@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import { micInput } from '../systems/MicInput';
+import { VolumeBar } from '../ui/VolumeBar';
 
 export class CalibrationScene extends Phaser.Scene {
-    mic!: micInput;
+    private mic!: micInput;
+    private volumeBar!: VolumeBar;
     private overlay!: HTMLDivElement;
     private instructionEl!: HTMLDivElement;
     private countdownEl!: HTMLDivElement;
@@ -11,18 +13,9 @@ export class CalibrationScene extends Phaser.Scene {
         super({ key: 'calibration' });
     }
 
-    init(data: { mic: micInput }) {
-        this.mic = data.mic;
-    }
-
     create() {
-        // Match game scene zoom so the dim overlay covers the full view
-        this.cameras.main.setZoom(4);
+        this.mic = this.game.registry.get('mic') as micInput;
 
-        // Dim background (rendered in game canvas)
-        this.add.rectangle(120, 80, 240, 160, 0x000000, 0.75);
-
-        // DOM overlay — renders at native screen resolution
         this.overlay = document.createElement('div');
         this.overlay.id = 'calibration-overlay';
         Object.assign(this.overlay.style, {
@@ -35,8 +28,9 @@ export class CalibrationScene extends Phaser.Scene {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.75)',
             pointerEvents: 'none',
-            zIndex: '1001',
+            zIndex: '1002',
         });
 
         this.instructionEl = document.createElement('div');
@@ -65,18 +59,25 @@ export class CalibrationScene extends Phaser.Scene {
         parent.style.position = 'relative';
         parent.appendChild(this.overlay);
 
-        this.events.on('shutdown', () => this.overlay?.remove());
+        this.volumeBar = new VolumeBar(this, this.mic);
+
+        this.events.on('shutdown', () => {
+            this.overlay?.remove();
+            this.volumeBar?.destroy();
+            if (this.scene.isPaused('main')) this.scene.resume('main');
+        });
 
         this.runCalibration();
     }
 
-    update() {
+    update(_time: number, delta: number) {
         const phase = this.mic?.calibrationPhase;
         if (phase === 'noise' || phase === 'peak') {
             const elapsed = performance.now() - this.mic.calibrationStartTime;
             const remaining = Math.max(0, (3000 - elapsed) / 1000);
             this.countdownEl.textContent = remaining.toFixed(1);
         }
+        this.volumeBar?.update(delta);
     }
 
     private async runCalibration() {
