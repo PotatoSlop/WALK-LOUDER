@@ -6,6 +6,7 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
     Body: Phaser.Physics.Arcade.Body;
     mode: 'auto' | 'driven';
     powered: boolean = false;
+    tileSprite: Phaser.GameObjects.Image | null = null;
 
     private startPos: Vec2;
     private endPos: Vec2;
@@ -36,6 +37,10 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         this.mode = mode;
     }
 
+    setEndPos(x: number, y: number) {
+        this.endPos = { x, y };
+    }
+
     linkSwitch(sw: Switch, inverted: boolean = false) {
         this.linkedSwitch = sw;
         this.switchInverted = inverted;
@@ -62,6 +67,8 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         this.attachedHazards.forEach(({ hazard, offsetX, offsetY }) => {
             hazard.syncPosition(this.x + offsetX, this.y + offsetY);
         });
+
+        if (this.tileSprite) this.tileSprite.setPosition(Math.round(this.x), Math.round(this.y));
     }
 
     private seekTarget(target: Vec2, delta: number): boolean {
@@ -76,8 +83,6 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
             return false;
         }
 
-        this.Body.setVelocity(0, 0);
-        this.setPosition(target.x, target.y);
         this.Body.reset(target.x, target.y);
         return true;
     }

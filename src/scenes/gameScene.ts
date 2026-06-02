@@ -10,10 +10,9 @@ import { VolumeBarScene, volumeToTintColor } from './volumeBarScene';
 import {SettingsScene} from './settings';
 import { getSetting } from '../systems/settingsManager';
 
-// Door tile GIDs — determines lock behaviour
-const DOOR_LOCKED_GID = 378;        // door body with handle → locked
-const DOOR_UNLOCKED_GID = 376;      // door body without handle → unlocked
-const DOOR_UNLOCKED_TOP_GID = 356;  // top piece paired with the unlocked body (locked top is +2 = 358)
+// Door unlock visual frames — swapped when a locked door opens
+const DOOR_UNLOCKED_GID = 376;      // door body without handle (unlocked visual)
+const DOOR_UNLOCKED_TOP_GID = 356;  // top piece paired with the unlocked body
 
 // Saw animation frames — each sub-array is one anim frame with 3 tile GIDs [left, center, right]
 const SAW_ANIM_FRAMES = [
@@ -28,15 +27,16 @@ const TURRET_TILE_GIDS = [36, 37, 56, 57];
 // Trigger spike animation frames — retracted (92) → fully extended (152)
 const TRIGGER_SPIKE_FRAMES = [92, 112, 132, 152];
 
-// Trigger spike sequence — [frameIndex, dwellMs, isDangerous]
-const TRIGGER_SPIKE_SEQUENCE: [number, number, boolean][] = [
-    [0, 1000, false],  // retracted — safe
-    [1,  80, false ],  // extending
-    [2,  80, true ],  // extending
-    [3, 500, true ],  // fully extended
-    [2,  80, true ],  // retracting
-    [1,  80, false ],  // retracting
-];
+function makeTriggerSpikeSequence(offTime: number, onTime: number, extendTime: number): [number, number, boolean][] {
+    return [
+        [0, offTime,    false],
+        [1, extendTime, false],
+        [2, extendTime, true ],
+        [3, onTime,     true ],
+        [2, extendTime, true ],
+        [1, extendTime, false],
+    ];
+}
 
 // Camera zoom factor — canvas runs at 960×640, world stays 240×160
 const CAMERA_ZOOM = 4;
@@ -54,14 +54,20 @@ export class GameScene extends Phaser.Scene {
     mic: any;
     escKey: any;
 
-    distortionAmount: number = 1.05;
+    distortionAmount: number = 1.08;
     private barrelFilter: any;
     private colorMatrixFilter: any;
+
+    private deathCt: number = 0;
 
     private currentLevelId: string = 'level01';
     private transitioning: boolean = false;
     private mapHeightInPixels: number = 0;
     private debugKey!: Phaser.Input.Keyboard.Key;
+    private pendingTriggerSpikeStarters: (() => void)[] = [];
+    private gidTypeMap: Map<number, string> = new Map();
+    private gidDefaultPropsMap: Map<number, any[]> = new Map();
+    private tilesetFirstgids: number[] = [];
 
     constructor() {
         super({ key: 'main' });
@@ -70,6 +76,7 @@ export class GameScene extends Phaser.Scene {
     init(data: { levelId?: string }) {
         this.currentLevelId = data.levelId ?? 'level01';
         this.transitioning = false;
+        this.deathCt = this.game.registry.get('deathCt') ?? 0;
     }
 
     preload() {
@@ -94,7 +101,24 @@ export class GameScene extends Phaser.Scene {
         const map = this.make.tilemap({ key: this.currentLevelId });
         const tileset = map.addTilesetImage('walk-louder-tile-sheet', 'tiles');
         const platformLayer = map.createLayer('Tile Layer 1', tileset!);
-        platformLayer!.setCollision([42]);
+
+        // Tiled 1.9+ no longer copies tile class/properties onto placed objects.
+        // Build GID→type and GID→defaultProps lookups from the tileset JSON so
+        // objects inherit type and property defaults without needing them set
+        // individually in the editor.
+        this.gidTypeMap = new Map();
+        this.gidDefaultPropsMap = new Map();
+        this.tilesetFirstgids = [];
+        const rawJson = this.cache.tilemap.get(this.currentLevelId)?.data;
+        for (const ts of rawJson?.tilesets ?? []) {
+            const fg: number = ts.firstgid ?? 1;
+            this.tilesetFirstgids.push(fg);
+            for (const tile of ts.tiles ?? []) {
+                const gid = fg + tile.id;
+                if (tile.type) this.gidTypeMap.set(gid, tile.type);
+                if (tile.properties?.length) this.gidDefaultPropsMap.set(gid, tile.properties);
+            }
+        }
 
         // Lock world + camera to tilemap dimensions (screen edge = level edge)
         this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
@@ -151,6 +175,8 @@ export class GameScene extends Phaser.Scene {
         this.events.on('playerDeath', () => {
             if (this.transitioning) return;
             this.transitioning = true;
+            this.deathCt++;
+            this.game.registry.set('deathCt', this.deathCt);
 
             const color = getSetting('bloodMode')
                 ? 0xff0000
@@ -173,22 +199,63 @@ export class GameScene extends Phaser.Scene {
             }
         }
 
-        // Spawn interactables first
+        // Spawn switches first so linkedSwitchId references resolve for everything else
         const switchById = new Map<number, Switch>();
-        const doorByX = new Map<number, Door>();
+        const doorById = new Map<number, Door>();
+        // platformGroups: maps endTargetId → platforms sharing that target, for slot distribution
+        const platformGroups = new Map<number, { platform: MovingPlatform; cx: number; cy: number }[]>();
         const interLayer = map.getObjectLayer('Interactables');
         if (interLayer) {
-            for (const obj of interLayer.objects) this.spawnInteractable(obj, switchById, doorByX);
+            for (const obj of interLayer.objects) {
+                if (this.getObjectType(obj) === 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups);
+            }
+            for (const obj of interLayer.objects) {
+                if (this.getObjectType(obj) !== 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups);
+            }
         }
 
-        // ── Spawn all hazards from the Tiled Hazards layer
+        // Distribute platforms that share an endTarget across its rectangle as individual slots
+        // so they don't all collapse to the center point.
+        for (const [endTargetId, entries] of platformGroups) {
+            if (entries.length <= 1) continue;
+            const target = objectById.get(endTargetId);
+            if (!target || target.point) continue;
+            const tw = target.width ?? 0;
+            const th = target.height ?? 0;
+            if (tw >= th) {
+                // Wide rect → distribute side-by-side along X
+                entries.sort((a, b) => a.cx - b.cx);
+                const targetCenterY = target.y! + th / 2;
+                entries.forEach(({ platform }, i) => {
+                    platform.setEndPos(target.x! + platform.width / 2 + i * platform.width, targetCenterY);
+                });
+            } else {
+                // Tall rect → stack along Y
+                entries.sort((a, b) => a.cy - b.cy);
+                const targetCenterX = target.x! + tw / 2;
+                entries.forEach(({ platform }, i) => {
+                    platform.setEndPos(targetCenterX, target.y! + platform.height / 2 + i * platform.height);
+                });
+            }
+        }
+
+        // Spawn hazards
         const hazardLayer = map.getObjectLayer('Hazards');
         if (hazardLayer) {
             for (const obj of hazardLayer.objects) this.spawnHazard(obj, switchById, objectById);
         }
 
+        // Start all trigger spikes on the same frame so they stay in sync
+        this.time.delayedCall(0, () => {
+            for (const start of this.pendingTriggerSpikeStarters) start();
+            this.pendingTriggerSpikeStarters = [];
+        });
+
         //  Collision callbacks
         this.physics.add.collider(this.player, platformLayer!);
+        this.physics.add.collider(this.player, this.platformGroup);
+
+        platformLayer!.setCollision([42]);
 
         for (const h of this.hazardGroup.getChildren()) {
             this.physics.add.overlap(this.player, h, (p) => {
@@ -228,9 +295,8 @@ export class GameScene extends Phaser.Scene {
             });
         }
 
-        for (const s of this.switchGroup.getChildren()) {
-            this.physics.add.overlap(this.player, s, (_p, sw) => (sw as Switch).onOverlap());
-        }
+        // Switches use manual AABB detection in update() — no physics body needed,
+        // which avoids rubber-banding conflicts between world bounds and static bodies.
 
         this.physics.add.collider(this.bulletGroup, platformLayer! || this.player, bullet => bullet.destroy());
         this.physics.add.overlap(this.player, this.bulletGroup, p => (p as Player).death());
@@ -250,28 +316,37 @@ export class GameScene extends Phaser.Scene {
         if (this.scene.isActive('volumeBar')) this.scene.stop('volumeBar');
         this.scene.launch('volumeBar');
 
+        // Write initial UI state to the registry before launching UIScene so it
+        // can read the correct level and hint on create() without relying on events
+        // that may fire before its listener is registered.
+        this.game.registry.set('currentLevel', this.currentLevelId.slice(-2));
+        this.game.registry.set('showHint', this.currentLevelId === 'level01' ? 'arrow-keys' : null);
+
         if (this.scene.isActive('ui')) this.scene.stop('ui');
         this.scene.launch('ui');
-
-        // Emit after a 1-frame delay so UIScene.create() has run and listeners are set up
-        this.time.delayedCall(0, () => {
-            this.game.events.emit('level-changed', this.currentLevelId.slice(-2));
-            if (this.currentLevelId === 'level01') {
-                this.game.events.emit('show-hint', 'arrow-keys');
-            }
-        });
 
         this.scene.resume();
     }
 
-    // Helpers 
+    // Helpers
+
+    // Convert a (flip-stripped) GID to the 0-based Phaser spritesheet frame index.
+    // Tiled can embed the same tileset multiple times with different firstgid offsets;
+    // frame = gid - firstgid, NOT gid - 1 (which only works when firstgid === 1).
+    private gidFrame(gid: number): number {
+        for (let i = this.tilesetFirstgids.length - 1; i >= 0; i--) {
+            if (gid >= this.tilesetFirstgids[i]) return gid - this.tilesetFirstgids[i];
+        }
+        return gid - 1;
+    }
+
     private addTileSprite(
         gid: number,
         tiledX: number,
         tiledY: number,
         rotation: number = 0
     ): Phaser.GameObjects.Image {
-        const img = this.add.image(tiledX, tiledY, 'tileSprites', gid - 1);
+        const img = this.add.image(tiledX, tiledY, 'tileSprites', this.gidFrame(gid));
         img.setOrigin(0, 1);
         if (rotation !== 0) {
             img.setAngle(rotation);
@@ -281,8 +356,27 @@ export class GameScene extends Phaser.Scene {
 
     private getTiledProp<T = any>(
         obj: Phaser.Types.Tilemaps.TiledObject, name: string): T | undefined {
+        // Object's own properties take precedence over tileset tile defaults
         const prop = obj.properties?.find((p: any) => p.name === name);
-        return prop?.value;
+        if (prop) return prop.value;
+        // Fall back to the tileset tile's default property value (Tiled 1.9+)
+        if (obj.gid) {
+            const gid = obj.gid & 0x1FFFFFFF;
+            const tileProp = this.gidDefaultPropsMap.get(gid)?.find((p: any) => p.name === name);
+            if (tileProp) return tileProp.value;
+        }
+        return undefined;
+    }
+
+    private getObjectType(obj: Phaser.Types.Tilemaps.TiledObject): string | undefined {
+        if (obj.type) return obj.type;
+        const customType = this.getTiledProp<string>(obj, 'type');
+        if (customType) return customType;
+        if (obj.gid) {
+            // Strip Tiled flip flags (high 3 bits) before lookup
+            return this.gidTypeMap.get(obj.gid & 0x1FFFFFFF);
+        }
+        return undefined;
     }
 
     private objectGeometry(obj: Phaser.Types.Tilemaps.TiledObject) {
@@ -306,28 +400,32 @@ export class GameScene extends Phaser.Scene {
     private spawnInteractable(
         obj: Phaser.Types.Tilemaps.TiledObject,
         switchById: Map<number, Switch>,
-        doorByX: Map<number, Door>
+        doorById: Map<number, Door>,
+        objectById: Map<number, Phaser.Types.Tilemaps.TiledObject>,
+        platformGroups: Map<number, { platform: MovingPlatform; cx: number; cy: number }[]>
     ) {
-        const type = this.getTiledProp<string>(obj, 'type') ?? obj.type;
+        const type = this.getObjectType(obj);
         const { cx, cy, w, h } = this.objectGeometry(obj);
-        const sprite = obj.gid ? this.addTileSprite(obj.gid, obj.x!, obj.y!) : null;
+        // Platforms get their own sprite creation (center origin) — see 'platform' case below
+        const sprite = (obj.gid && type !== 'platform') ? this.addTileSprite(obj.gid, obj.x!, obj.y!) : null;
 
         switch (type) {
             case 'door': {
                 const targetLevel = this.getTiledProp<string>(obj, 'targetLevel') ?? '';
-                const locked = obj.gid === DOOR_LOCKED_GID;
-                const keyType = locked ? 'default' : null;
+                const locked = this.getTiledProp<boolean>(obj, 'locked') ?? false;
+                const keyType = locked ? (this.getTiledProp<string>(obj, 'keyType') ?? 'default') : null;
                 const door = new Door(this, cx, cy, w, h, locked, keyType, targetLevel);
                 door.setAlpha(0);
                 door.tileSprite = sprite;
                 this.doorGroup.add(door);
-                doorByX.set(obj.x!, door);
+                doorById.set(obj.id!, door);
                 break;
             }
             case 'door_top': {
-                // Decorative top piece — link to the door at the same column so the
-                // top sprite can be swapped when the door unlocks at runtime.
-                const door = doorByX.get(obj.x!);
+                // Decorative top piece — linked by linkedDoorId so the top sprite can
+                // be swapped when the door unlocks at runtime.
+                const linkedDoorId = this.getTiledProp<number>(obj, 'linkedDoorId');
+                const door = linkedDoorId !== undefined ? doorById.get(linkedDoorId) : undefined;
                 if (door) door.topSprite = sprite;
                 break;
             }
@@ -345,10 +443,51 @@ export class GameScene extends Phaser.Scene {
                 sw.setAlpha(0);
                 if (sprite) {
                     sw.tileSprite = sprite;
-                    sw.baseFrame = obj.gid! - 1;
+                    sw.baseFrame = this.gidFrame(obj.gid!);
+                    // Tile pairs are (off, on) spaced 2 apart. If the placed tile is
+                    // the "on" variant (gid%4==2), the active offset goes backward.
+                    if ((obj.gid! % 4) === 2) sw.activeFrameOffset = -2;
                 }
                 this.switchGroup.add(sw);
                 switchById.set(obj.id!, sw);
+                break;
+            }
+            case 'platform': {
+                const endTargetId = this.getTiledProp<number>(obj, 'endTarget') || undefined;
+                let endX = cx, endY = cy;
+                if (endTargetId) {
+                    const target = objectById.get(endTargetId);
+                    if (target) {
+                        endX = target.x! + (target.width ?? 0) / 2;
+                        endY = target.point ? target.y! : target.y! + (target.height ?? 0) / 2;
+                    }
+                }
+                const speed = this.getTiledProp<number>(obj, 'speed') ?? 50;
+                const mode  = (this.getTiledProp<string>(obj, 'mode') ?? 'auto') as 'auto' | 'driven';
+                const swId  = this.getTiledProp<number>(obj, 'linkedSwitchId') || undefined;
+                const sw    = swId ? switchById.get(swId) : undefined;
+                const moves = endX !== cx || endY !== cy;
+                const platform = new MovingPlatform(
+                    this, cx, cy, w, h,
+                    moves ? { x: endX, y: endY } : undefined,
+                    moves ? speed : undefined,
+                    sw ? 'driven' : mode
+                );
+                platform.setAlpha(0);
+                // Center-origin sprite so setPosition(this.x, this.y) in update() aligns
+                // the visual exactly with the physics body — no offset arithmetic needed.
+                if (obj.gid) {
+                    const img = this.add.image(cx, cy, 'tileSprites', this.gidFrame(obj.gid & 0x1FFFFFFF));
+                    img.setOrigin(0.5, 0.5);
+                    platform.tileSprite = img;
+                }
+                if (sw) platform.linkSwitch(sw);
+                this.platformGroup.add(platform);
+                // Register in group map so the distribution pass can assign slots later
+                if (endTargetId) {
+                    if (!platformGroups.has(endTargetId)) platformGroups.set(endTargetId, []);
+                    platformGroups.get(endTargetId)!.push({ platform, cx, cy });
+                }
                 break;
             }
         }
@@ -359,47 +498,49 @@ export class GameScene extends Phaser.Scene {
         switchById: Map<number, Switch>,
         objectById: Map<number, Phaser.Types.Tilemaps.TiledObject>
     ) {
-        const type = this.getTiledProp<string>(obj, 'type') ?? obj.type;
+        const type = this.getObjectType(obj);
         const { cx, cy, w, h, rot } = this.objectGeometry(obj);
+
+        // Treat linkedSwitchId=0 as "not linked" (0 is the tile-default sentinel for "none")
+        const prop = <T>(name: string) => this.getTiledProp<T>(obj, name);
+        const linkedSwitch = (id: number | undefined): Switch | undefined =>
+            id ? switchById.get(id) : undefined;
 
         switch (type) {
             case 'spike': {
-                const spikeSwitchId = this.getTiledProp<number>(obj, 'linkedSwitchId');
-                if (!obj.gid && spikeSwitchId !== undefined) {
-                    // No tile sprite + switch linked → animated trigger-spike driven by lever
-                    const sw = switchById.get(spikeSwitchId);
-                    if (sw) {
-                        const startEnabled = this.getTiledProp<boolean>(obj, 'enabled') ?? true;
-                        this.spawnSwitchDrivenSpike(cx, cy, w, h, sw, startEnabled);
-                    }
+                const spikeSwitchId = prop<number>('linkedSwitchId');
+                const sw = linkedSwitch(spikeSwitchId);
+                if (!obj.gid && sw) {
+                    // Invisible rectangle spike driven by a switch
+                    const startEnabled = prop<boolean>('startEnabled') ?? true;
+                    this.spawnSwitchDrivenSpike(cx, cy, w, h, sw, startEnabled);
                     break;
                 }
                 if (obj.gid) this.addTileSprite(obj.gid, obj.x!, obj.y!, rot);
                 const spike = new Hazard(this, cx, cy, w, h, true);
                 spike.setAlpha(0);
-                // Hitbox shrink only for tile-based spikes — triangle texture, not a full tile.
                 if (obj.gid) (spike.body as Phaser.Physics.Arcade.StaticBody).setSize(6, h * 0.75);
-                if (spikeSwitchId !== undefined) {
-                    const sw = switchById.get(spikeSwitchId);
-                    if (sw) {
-                        const startEnabled = this.getTiledProp<boolean>(obj, 'enabled') ?? true;
-                        spike.linkSwitch(sw, startEnabled);
-                        spike.setEnabled(startEnabled);
-                    }
+                if (sw) {
+                    const startEnabled = prop<boolean>('startEnabled') ?? true;
+                    spike.linkSwitch(sw, startEnabled);
+                    spike.setEnabled(startEnabled);
                 }
                 this.hazardGroup.add(spike);
                 break;
             }
             case 'trigger_spike': {
-                const spikeSwitchId = this.getTiledProp<number>(obj, 'linkedSwitchId');
-                if (spikeSwitchId !== undefined) {
-                    const sw = switchById.get(spikeSwitchId);
-                    if (sw) {
-                        const startEnabled = this.getTiledProp<boolean>(obj, 'enabled') ?? true;
-                        this.spawnSwitchDrivenSpike(cx, cy, w, h, sw, startEnabled);
-                    }
+                const spikeSwitchId = prop<number>('linkedSwitchId');
+                const sw = linkedSwitch(spikeSwitchId);
+                if (sw) {
+                    const startEnabled = prop<boolean>('startEnabled') ?? true;
+                    this.spawnSwitchDrivenSpike(cx, cy, w, h, sw, startEnabled);
                 } else {
-                    this.spawnTriggerSpike(cx, cy, w, h, this.getTiledProp<number>(obj, 'offTime'));
+                    this.spawnTriggerSpike(
+                        cx, cy, w, h,
+                        prop<number>('offTime')     ?? 1000,
+                        prop<number>('onTime')      ?? 500,
+                        prop<number>('extendTime')  ?? 80
+                    );
                 }
                 break;
             }
@@ -412,7 +553,7 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    private spawnTriggerSpike(cx: number, cy: number, w: number, h: number, offTime?: number) {
+    private spawnTriggerSpike(cx: number, cy: number, w: number, h: number, offTime = 1000, onTime = 500, extendTime = 80) {
         const tileCount = Math.max(1, Math.round(w / 8));
         const container = this.add.container(cx, cy).setDepth(50);
         const tiles: Phaser.GameObjects.Image[] = [];
@@ -428,16 +569,18 @@ export class GameScene extends Phaser.Scene {
         // Start safe — body disabled until first dangerous frame
         (hazard.body as any).enable = false;
 
+        const seq = makeTriggerSpikeSequence(offTime, onTime, extendTime);
         let step = 0;
         const tick = () => {
-            const [frameIdx, baseDwell, dangerous] = TRIGGER_SPIKE_SEQUENCE[step];
-            const dwell = (step === 0 && offTime !== undefined) ? offTime : baseDwell;
+            const [frameIdx, dwell, dangerous] = seq[step];
             tiles.forEach(t => t.setFrame(TRIGGER_SPIKE_FRAMES[frameIdx] - 1));
             (hazard.body as any).enable = dangerous;
-            step = (step + 1) % TRIGGER_SPIKE_SEQUENCE.length;
+            step = (step + 1) % seq.length;
             this.time.delayedCall(dwell, tick);
         };
-        tick();
+        // Don't start immediately — defer to pendingTriggerSpikeStarters so all
+        // trigger spikes in the level start on the exact same frame and stay in sync.
+        this.pendingTriggerSpikeStarters.push(tick);
 
         this.hazardGroup.add(hazard);
     }
@@ -556,16 +699,28 @@ export class GameScene extends Phaser.Scene {
 
     private spawnTurret(
         obj: Phaser.Types.Tilemaps.TiledObject,
-        cx: number, cy: number
+        _cx: number, _cy: number
     ) {
-        const direction = this.getTiledProp<string>(obj, 'direction') ?? 'right';
+        // The placed tile is the bottom-left of the 2×2 sprite (Tiled bottom-left origin).
+        // Build the full 16×16 sprite rightward and upward from that anchor.
+        const cx = obj.x! + 8;
+        const cy = obj.y! - 8;
+
+        // H-flip on the placed tile encodes facing direction — no per-object property needed.
+        // Phaser strips Tiled's flip bits from gid and exposes them as flippedHorizontal.
+        const hFlip = !!obj.flippedHorizontal;
+        let direction = this.getTiledProp<string>(obj, 'direction') ?? 'right';
+        if (hFlip) direction = direction === 'right' ? 'left' : direction === 'left' ? 'right' : direction;
+
+        const fireInterval = this.getTiledProp<number>(obj, 'fireInterval') ?? 1000;
         const container = this.add.container(cx, cy).setDepth(50);
         const offsets: [number, number][] = [[-4, -4], [4, -4], [-4, 4], [4, 4]];
         for (let i = 0; i < 4; i++) {
             container.add(this.add.image(offsets[i][0], offsets[i][1], 'tileSprites', TURRET_TILE_GIDS[i] - 1));
         }
-        const dirAngles: Record<string, number> = { right: 0, down: 90, left: 180, up: -90 };
+        const dirAngles: Record<string, number> = { right: 0, down: 90, up: -90 };
         container.setAngle(dirAngles[direction] ?? 0);
+        if (direction === 'left') container.setScale(-1, 1);
 
         const turret = new Hazard(this, cx, cy, 16, 16, true);
         turret.setAlpha(0);
@@ -575,7 +730,7 @@ export class GameScene extends Phaser.Scene {
         
 
         this.time.addEvent({
-            delay: 1000,
+            delay: fireInterval,
             loop: true,
             callback: () => turret.shoot(),
         });
@@ -602,9 +757,17 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (this.cursors.left.isDown) {
-            this.player.moveLeft(vol);
+            if (this.player.Body.blocked.left) {
+                this.player.Body.setVelocityX(0);
+            } else {
+                this.player.moveLeft(vol);
+            }
         } else if (this.cursors.right.isDown) {
-            this.player.moveRight(vol);
+            if (this.player.Body.blocked.right) {
+                this.player.Body.setVelocityX(0);
+            } else {
+                this.player.moveRight(vol);
+            }
         } else {
             const friction = this.player.Body.blocked.down ? 0.82 : 0.97;
             this.player.setSpeedMultiplier(friction);
@@ -653,7 +816,16 @@ export class GameScene extends Phaser.Scene {
         const tintVol = barScene?.displayedVol ?? 0;
         this.player.setTint(volumeToTintColor(tintVol));
 
-        this.switchGroup.getChildren().forEach((s: Phaser.GameObjects.GameObject) => (s as Switch).tick());
+        this.switchGroup.getChildren().forEach((s: Phaser.GameObjects.GameObject) => {
+            const sw = s as Switch;
+            const pb = this.player.Body;
+            const hw = sw.width / 2, hh = sw.height / 2;
+            if (pb.x < sw.x + hw && pb.x + pb.width > sw.x - hw &&
+                pb.y < sw.y + hh && pb.y + pb.height > sw.y - hh) {
+                sw.onOverlap();
+            }
+            sw.tick();
+        });
         this.hazardGroup.getChildren().forEach((h: Phaser.GameObjects.GameObject) => (h as Hazard).update());
         this.platformGroup.getChildren().forEach((p: Phaser.GameObjects.GameObject) => (p as MovingPlatform).update(delta));
     }

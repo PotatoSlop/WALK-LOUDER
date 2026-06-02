@@ -28,7 +28,7 @@ export class SettingsScene extends Phaser.Scene {
         });
 
         const title = document.createElement('p');
-        title.textContent = 'SETTINGS';
+        title.textContent = 'PAUSED';
         Object.assign(title.style, { fontSize: '24px', margin: '0 0 20px 0' });
         overlay.appendChild(title);
 
