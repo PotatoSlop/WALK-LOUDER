@@ -12,6 +12,7 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
     private endPos: Vec2;
     private speed: number;
     private headingToEnd: boolean = true;
+    private arrived: boolean = false;
     private attachedHazards: { hazard: Hazard; offsetX: number; offsetY: number }[] = [];
     private linkedSwitch: Switch | null = null;
     private switchInverted: boolean = false;
@@ -53,15 +54,19 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
     update(delta: number) {
         if (this.linkedSwitch) {
             const next = this.linkedSwitch.powered !== this.switchInverted;
-            if (next !== this.powered) this.powered = next;
+            if (next !== this.powered) {
+                this.powered = next;
+                this.arrived = false; // target changed — start moving again
+            }
         }
 
         if (this.mode === 'auto') {
             const target = this.headingToEnd ? this.endPos : this.startPos;
             const reached = this.seekTarget(target, delta);
             if (reached) this.headingToEnd = !this.headingToEnd;
-        } else {
-            this.seekTarget(this.powered ? this.endPos : this.startPos, delta);
+        } else if (!this.arrived) {
+            const reached = this.seekTarget(this.powered ? this.endPos : this.startPos, delta);
+            if (reached) this.arrived = true;
         }
 
         this.attachedHazards.forEach(({ hazard, offsetX, offsetY }) => {

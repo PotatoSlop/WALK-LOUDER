@@ -1,16 +1,10 @@
 import Phaser from 'phaser';
 import { getSetting } from '../systems/settingsManager';
 
-// Screen coords of the callout image: centered on the level01 player spawn (world 20,116 × zoom 4)
-const CALLOUT_X = 80;
-const CALLOUT_Y = 420;
-
 export class UIScene extends Phaser.Scene {
     private levelText!:     Phaser.GameObjects.Text;
     private deathCount!:    Phaser.GameObjects.Text;
     private skullIcon!:     Phaser.GameObjects.Image;
-    private controlsHint!:  Phaser.GameObjects.Image;
-    private moveLabel!:     Phaser.GameObjects.Text;
     private deathEmitter!:  Phaser.GameObjects.Particles.ParticleEmitter;
 
     constructor() {
@@ -18,13 +12,11 @@ export class UIScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image('controls-callout', 'assets/Control_callout.png');
         this.load.image('skull', 'assets/skull.png');
     }
 
     create() {
         this.buildLevelDisplay();
-        this.buildControlsHint();
         this.buildDeathEmitter();
         this.registerEvents();
         this.buildDeathCountDisplay();
@@ -33,12 +25,6 @@ export class UIScene extends Phaser.Scene {
         // GameScene.create() set them before launching this scene.
         const level = this.game.registry.get('currentLevel') as string | undefined;
         if (level) this.showLevel(level);
-
-        const hint = this.game.registry.get('showHint') as string | undefined;
-        if (hint === 'arrow-keys') {
-            this.controlsHint.setVisible(true);
-            this.moveLabel.setVisible(true);
-        }
 
         const deaths = this.game.registry.get('deathCt') as number | undefined;
         this.deathCount.setText(`${deaths ?? 0}`);
@@ -80,25 +66,6 @@ export class UIScene extends Phaser.Scene {
             .setVisible(false);
     }
 
-    // controls hint 
-
-    private buildControlsHint() {
-        this.moveLabel = this.add.text(CALLOUT_X, CALLOUT_Y - 70, 'Move', {
-                fontFamily: '"Press Start 2P"',
-                fontSize:   '10px',
-                color:      '#c0c0c0',
-            })
-            .setOrigin(0.5, 1)
-            .setAlpha(0.6)
-            .setVisible(false);
-
-        this.controlsHint = this.add
-            .image(CALLOUT_X, CALLOUT_Y, 'controls-callout')
-            .setOrigin(0.5, 1)
-            .setAlpha(0.6)
-            .setVisible(false);
-    }
-
     // death particles
 
     private buildDeathEmitter() {
@@ -118,18 +85,6 @@ export class UIScene extends Phaser.Scene {
 
     private registerEvents() {
         this.game.events.on('level-changed', this.showLevel, this);
-
-        this.game.events.on('show-hint', (hintKey: string) => {
-            if (hintKey === 'arrow-keys') {
-                this.controlsHint.setVisible(true);
-                this.moveLabel.setVisible(true);
-            }
-        }, this);
-
-        this.game.events.on('hide-hint', () => {
-            this.controlsHint.setVisible(false);
-            this.moveLabel.setVisible(false);
-        }, this);
 
         this.game.events.on('player-death-fx', ({ x, y, color }: { x: number; y: number; color: number }) => {
             if (!getSetting('particlesEnabled')) return;
@@ -156,8 +111,6 @@ export class UIScene extends Phaser.Scene {
 
     private cleanup() {
         this.game.events.off('level-changed',    this.showLevel, this);
-        this.game.events.off('show-hint',        undefined, this);
-        this.game.events.off('hide-hint',        undefined, this);
         this.game.events.off('player-death-fx',  undefined, this);
         this.game.registry.events.off('changedata-currentLevel', undefined, this);
         this.game.registry.events.off('changedata-deathCt',      undefined, this);

@@ -56,6 +56,8 @@ export class GameScene extends Phaser.Scene {
 
     distortionAmount: number = 1.08;
     private barrelFilter: any;
+    private controlsHint!: Phaser.GameObjects.Image;
+    private moveLabel!: Phaser.GameObjects.Text;
     private colorMatrixFilter: any;
 
     private deathCt: number = 0;
@@ -82,6 +84,7 @@ export class GameScene extends Phaser.Scene {
     preload() {
         this.load.tilemapTiledJSON(this.currentLevelId, `assets/data/levels/${this.currentLevelId}.tmj`);
         this.load.image('tiles', 'assets/walk-louder-tile-sheet.png');
+        this.load.image('controls-callout', 'assets/Control_callout.png');
         this.load.spritesheet('tileSprites', 'assets/walk-louder-tile-sheet.png', { frameWidth: 8, frameHeight: 8 });
         this.load.spritesheet('player', 'assets/walkter-Sheet.png', { frameWidth: 8, frameHeight: 16 });
     }
@@ -165,6 +168,7 @@ export class GameScene extends Phaser.Scene {
         this.player.setTintMode(Phaser.TintModes.FILL);
         this.player.levelStartX = spawnX;
         this.player.levelStartY = spawnY;
+        this.buildControlsHint();
         this.player.Body.onWorldBounds = true;
         this.physics.world.on('worldbounds', (body: Phaser.Physics.Arcade.Body, up: boolean, down: boolean) => {
             if (body.gameObject === this.player && down) {
@@ -326,6 +330,28 @@ export class GameScene extends Phaser.Scene {
         this.scene.launch('ui');
 
         this.scene.resume();
+    }
+
+    private buildControlsHint() {
+        const s = 1 / CAMERA_ZOOM;
+        this.moveLabel = this.add.text(20, 87.5, 'Move', {
+                fontFamily: '"Press Start 2P"',
+                fontSize:   '10px',
+                color:      '#c0c0c0',
+            })
+            .setOrigin(0.5, 1)
+            .setScale(s)
+            .setAlpha(0.6)
+            .setDepth(5)
+            .setVisible(this.currentLevelId === 'level01');
+
+        this.controlsHint = this.add
+            .image(20, 105, 'controls-callout')
+            .setOrigin(0.5, 1)
+            .setScale(s)
+            .setAlpha(0.6)
+            .setDepth(5)
+            .setVisible(this.currentLevelId === 'level01');
     }
 
     // Helpers
