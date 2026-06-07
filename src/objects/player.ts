@@ -100,6 +100,23 @@ export class Player extends Phaser.GameObjects.Sprite {
         this.Body.setVelocityX(this.Body.velocity.x * multiplier);
     }
 
+    // Timestamp (performance.now ms) until which an external force owns horizontal
+    // velocity. While active, the movement script must not rewrite velocity.x, so
+    // the impulse isn't immediately cancelled by input/friction (the rubber-band bug).
+    knockbackUntil: number = 0;
+
+    get inKnockback(): boolean {
+        return performance.now() < this.knockbackUntil;
+    }
+
+    // Apply a one-shot external impulse and open a knockback window. Friction still
+    // runs during the window, so the player decelerates to a natural stop.
+    applyKnockback(vx: number, vy: number, durationMs: number) {
+        this.Body.setVelocityX(vx);
+        if (vy !== 0) this.Body.setVelocityY(vy);
+        this.knockbackUntil = performance.now() + durationMs;
+    }
+
     death() {
         this.scene.events.emit('playerDeath');
     }

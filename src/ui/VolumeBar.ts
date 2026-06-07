@@ -109,9 +109,15 @@ export class VolumeBar {
     };
 
     update(delta: number) {
-        const raw     = this.mic?.getRawVolume?.() ?? 0;
-        const ceiling = this.mic?.noiseCeiling > 0 ? this.mic.noiseCeiling : 1;
-        const target  = Phaser.Math.Clamp(raw / (ceiling * 0.5), 0, 1);
+        const raw          = this.mic?.getRawVolume?.() ?? 0;
+        const noiseCeiling = this.mic?.noiseCeiling ?? 1;
+        const noiseFloor   = this.mic?.noiseFloor ?? 0;
+        const ceiling      = noiseCeiling > 0 ? noiseCeiling : 1;
+        const range        = ceiling - noiseFloor;
+        // Mirror the same normalization the game uses for jump so bar == actual boost
+        const target       = range > 0
+            ? Phaser.Math.Clamp((raw - noiseFloor) / range, 0, 1)
+            : Phaser.Math.Clamp(raw / ceiling, 0, 1);
 
         if (target > this.displayedVol) {
             this.displayedVol = target;

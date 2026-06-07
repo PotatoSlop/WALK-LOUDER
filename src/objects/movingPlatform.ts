@@ -63,7 +63,20 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         if (this.mode === 'auto') {
             const target = this.headingToEnd ? this.endPos : this.startPos;
             const reached = this.seekTarget(target, delta);
-            if (reached) this.headingToEnd = !this.headingToEnd;
+            if (reached) {
+                this.headingToEnd = !this.headingToEnd;
+                // Immediately apply velocity for the return leg so there is no
+                // zero-velocity frame at the turnaround point (Body.reset() zeroes
+                // velocity, which otherwise lets the player free-fall for one frame).
+                const next = this.headingToEnd ? this.endPos : this.startPos;
+                const dx   = next.x - target.x;
+                const dy   = next.y - target.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 0) {
+                    this.Body.setVelocityX((dx / dist) * this.speed);
+                    this.Body.setVelocityY((dy / dist) * this.speed);
+                }
+            }
         } else if (!this.arrived) {
             const reached = this.seekTarget(this.powered ? this.endPos : this.startPos, delta);
             if (reached) this.arrived = true;
@@ -77,8 +90,12 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
     }
 
     private seekTarget(target: Vec2, delta: number): boolean {
-        const dx = target.x - this.x;
-        const dy = target.y - this.y;
+        // Use body centre (updated in PRE_UPDATE) rather than this.x/y (synced in
+        // POST_UPDATE — stale by one frame in scene.update(), causing slight overshoot).
+        const bx   = this.Body.center.x;
+        const by   = this.Body.center.y;
+        const dx   = target.x - bx;
+        const dy   = target.y - by;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const step = this.speed * (delta / 1000);
 

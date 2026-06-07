@@ -6,9 +6,11 @@ import { Hazard } from '../objects/hazards';
 import { Key } from '../objects/key';
 import { MovingPlatform } from '../objects/movingPlatform';
 import { Switch } from '../objects/switches';
+import { PunchBox } from '../objects/punchBox';
 import { VolumeBarScene, volumeToTintColor } from './volumeBarScene';
 import {SettingsScene} from './settings';
 import { getSetting } from '../systems/settingsManager';
+import { LEVEL_NAMES } from '../data/levels';
 
 // Door unlock visual frames — swapped when a locked door opens
 const DOOR_UNLOCKED_GID = 376;      // door body without handle (unlocked visual)
@@ -51,6 +53,7 @@ export class GameScene extends Phaser.Scene {
     itemGroup: any;
     switchGroup: any;
     bulletGroup: any;
+    punchBoxGroup: any;
     mic: any;
     escKey: any;
 
@@ -76,7 +79,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     init(data: { levelId?: string }) {
-        this.currentLevelId = data.levelId ?? 'level01';
+        this.currentLevelId = data.levelId ?? 'level12';
         this.transitioning = false;
         this.deathCt = this.game.registry.get('deathCt') ?? 0;
     }
@@ -97,6 +100,7 @@ export class GameScene extends Phaser.Scene {
         this.switchGroup   = this.add.group();
         this.platformGroup = this.add.group();
         this.bulletGroup = this.add.group();
+        this.punchBoxGroup = this.add.group();
 
         this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
@@ -105,10 +109,6 @@ export class GameScene extends Phaser.Scene {
         const tileset = map.addTilesetImage('walk-louder-tile-sheet', 'tiles');
         const platformLayer = map.createLayer('Tile Layer 1', tileset!);
 
-        // Tiled 1.9+ no longer copies tile class/properties onto placed objects.
-        // Build GID→type and GID→defaultProps lookups from the tileset JSON so
-        // objects inherit type and property defaults without needing them set
-        // individually in the editor.
         this.gidTypeMap = new Map();
         this.gidDefaultPropsMap = new Map();
         this.tilesetFirstgids = [];
@@ -144,8 +144,12 @@ export class GameScene extends Phaser.Scene {
 
         this.cameras.main.filters!.external.addVignette(0.5, 0.5, 0.75, 0.1);
 
-        // Apply saved scanlines state
-        document.body.classList.toggle('scanlines-enabled', getSetting('scanlinesEnabled'));
+        // Apply saved scanlines state — scoped to the canvas container, not the whole page
+        const canvasParent = this.game.canvas.parentElement;
+        if (canvasParent) {
+            canvasParent.style.position = 'relative';
+            canvasParent.classList.toggle('scanlines-enabled', getSetting('scanlinesEnabled'));
+        }
 
         this.game.events.on('setting-changed', ({ key, value }: { key: string, value: any }) => {
             if (key === 'saturation' && this.colorMatrixFilter) {
@@ -155,7 +159,7 @@ export class GameScene extends Phaser.Scene {
                 this.barrelFilter.active = value;
             }
             if (key === 'scanlinesEnabled') {
-                document.body.classList.toggle('scanlines-enabled', value);
+                this.game.canvas.parentElement?.classList.toggle('scanlines-enabled', value);
             }
         });
 
@@ -324,6 +328,7 @@ export class GameScene extends Phaser.Scene {
         // can read the correct level and hint on create() without relying on events
         // that may fire before its listener is registered.
         this.game.registry.set('currentLevel', this.currentLevelId.slice(-2));
+        this.game.registry.set('levelName', LEVEL_NAMES[this.currentLevelId] ?? '');
         this.game.registry.set('showHint', this.currentLevelId === 'level01' ? 'arrow-keys' : null);
 
         if (this.scene.isActive('ui')) this.scene.stop('ui');
@@ -334,7 +339,7 @@ export class GameScene extends Phaser.Scene {
 
     private buildControlsHint() {
         const s = 1 / CAMERA_ZOOM;
-        this.moveLabel = this.add.text(20, 87.5, 'Move', {
+        this.moveLabel = this.add.text(20, 78, 'Move', {
                 fontFamily: '"Press Start 2P"',
                 fontSize:   '10px',
                 color:      '#c0c0c0',
@@ -346,7 +351,7 @@ export class GameScene extends Phaser.Scene {
             .setVisible(this.currentLevelId === 'level01');
 
         this.controlsHint = this.add
-            .image(20, 105, 'controls-callout')
+            .image(20, 95, 'controls-callout')
             .setOrigin(0.5, 1)
             .setScale(s)
             .setAlpha(0.6)
@@ -355,6 +360,33 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Helpers
+
+    // Returns true when the player's physics body is side-touching a moving platform
+    // in the given direction. Used to exempt platform side-contacts from the static-wall
+    // velocity-zeroing that would otherwise cause the player to stick and not slide down.
+    // Returns the X velocity of the first moving platform directly beneath the
+    // player, or 0 if the player is on static ground. Used for relative friction.
+    private getPlatformVelocityBelow(): number {
+        const pb = this.player.Body;
+        for (const p of this.platformGroup.getChildren()) {
+            const platBody = (p as MovingPlatform).Body;
+            if (pb.right <= platBody.left || pb.left >= platBody.right) continue;
+            if (Math.abs(platBody.top - pb.bottom) <= 4) return platBody.velocity.x;
+        }
+        return 0;
+    }
+
+    private isPressingIntoPlatform(side: 'left' | 'right'): boolean {
+        const pb = this.player.Body;
+        for (const p of this.platformGroup.getChildren()) {
+            const platBody = (p as MovingPlatform).Body;
+            // Skip if there is no vertical overlap (platform is above or below)
+            if (pb.bottom <= platBody.top || pb.top >= platBody.bottom) continue;
+            if (side === 'left'  && Math.abs(platBody.right - pb.left)  <= 2) return true;
+            if (side === 'right' && Math.abs(platBody.left  - pb.right) <= 2) return true;
+        }
+        return false;
+    }
 
     // Convert a (flip-stripped) GID to the 0-based Phaser spritesheet frame index.
     // Tiled can embed the same tileset multiple times with different firstgid offsets;
@@ -576,6 +608,24 @@ export class GameScene extends Phaser.Scene {
             case 'turret':
                 this.spawnTurret(obj, cx, cy);
                 break;
+            case 'punch_box': {
+                // Direction is authored purely via the tile's H-flip in Tiled:
+                // flipped → punch left, unflipped → punch right. The fist's facing,
+                // arm-extension direction, and shove force all derive from this.
+                const flipped = !!(obj as any).flippedHorizontal;
+                const faceDir = flipped ? -1 : 1;
+                const forceMag = Math.abs(prop<number>('forceX') ?? -200);
+                const forceX = faceDir * forceMag;
+                const forceY = prop<number>('forceY') ?? 0;
+                const swId   = prop<number>('linkedSwitchId');
+                const sw     = linkedSwitch(swId);
+                const startEnabled = prop<boolean>('startEnabled') ?? true;
+                const fistFrame = obj.gid ? this.gidFrame(obj.gid & 0x1FFFFFFF) : 0;
+                const pb = new PunchBox(this, cx, cy, w, h, fistFrame, flipped, forceX, forceY, startEnabled);
+                if (sw) pb.linkSwitch(sw);
+                this.punchBoxGroup.add(pb);
+                break;
+            }
         }
     }
 
@@ -769,6 +819,9 @@ export class GameScene extends Phaser.Scene {
     // Game loop 
     update(_time: number, delta: number) {
         const vol = this.debugKey.isDown ? 0.8 : (this.mic?.smoothedVolume() ?? 0);
+        // Jump uses instantaneous normalized volume — EMA-smoothed vol lags too much
+        // to capture a shout at the moment of jump (frame 1 smoothed ≈ 30% of actual peak).
+        const jumpVol = this.debugKey.isDown ? 0.8 : (this.mic?.getNormalizedVolume() ?? vol);
 
         // Pause Toggle
         if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
@@ -782,21 +835,36 @@ export class GameScene extends Phaser.Scene {
             }
         }
 
-        if (this.cursors.left.isDown) {
-            if (this.player.Body.blocked.left) {
+        // During a knockback window, an external force (e.g. punch box) owns horizontal
+        // velocity — skip input so it isn't instantly overwritten. Friction (the else
+        // branch) still runs, bleeding the impulse off to a natural stop.
+        const inKnockback = this.player.inKnockback;
+        if (!inKnockback && this.cursors.left.isDown) {
+            if (this.player.Body.blocked.left && !this.isPressingIntoPlatform('left')) {
                 this.player.Body.setVelocityX(0);
             } else {
                 this.player.moveLeft(vol);
             }
-        } else if (this.cursors.right.isDown) {
-            if (this.player.Body.blocked.right) {
+        } else if (!inKnockback && this.cursors.right.isDown) {
+            if (this.player.Body.blocked.right && !this.isPressingIntoPlatform('right')) {
                 this.player.Body.setVelocityX(0);
             } else {
                 this.player.moveRight(vol);
             }
         } else {
-            const friction = this.player.Body.blocked.down ? 0.82 : 0.97;
-            this.player.setSpeedMultiplier(friction);
+            if (this.player.Body.blocked.down) {
+                // Decelerate relative to whatever surface is below. On a moving
+                // platform, Phaser's SeparateY friction already sets player.vx =
+                // platform.vx each frame. Applying a flat 0.82 multiplier then
+                // fights that, causing rubber-banding. By decelerating the excess
+                // velocity (player.vx - platform.vx), riders stay locked to the
+                // platform while still bleeding off any extra input-driven speed.
+                const platVx = this.getPlatformVelocityBelow();
+                const relVx  = this.player.Body.velocity.x - platVx;
+                this.player.Body.setVelocityX(platVx + relVx * 0.82);
+            } else {
+                this.player.setSpeedMultiplier(0.97);
+            }
         }
 
         if (this.player.Body.blocked.down && performance.now() - this.player.jumpTime > 100) {
@@ -808,23 +876,26 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (performance.now() - this.player.lastJumpInputTime <= this.player.JumpBufferTime) {
-            this.player.jump(vol);
+            this.player.jump(jumpVol);
         }
 
-        this.player.applyVocalBoost(vol);
+        this.player.applyVocalBoost(jumpVol);
 
         const boostActive = performance.now() - this.player.jumpTime < this.player.jumpBoostWindow;
         if (this.cursors.up.isUp && this.player.Body.velocity.y < 0 && !boostActive) {
             this.player.Body.setVelocityY(this.player.Body.velocity.y * 0.85);
         }
 
-        // Player animation 
+        // Player animation
         const isGrounded = this.player.Body.blocked.down;
         const vy = this.player.Body.velocity.y;
         const vx = Math.abs(this.player.Body.velocity.x);
-        if (!isGrounded) {
+        // Grace window: keep airborne animation for 100ms after a jump fires so that
+        // a single grounded frame while spam-jumping doesn't flash the idle pose.
+        const justJumped = performance.now() - this.player.jumpTime < 100;
+        if (!isGrounded || justJumped) {
             this.player.anims.timeScale = 1;
-            if (vy < 0) {
+            if (vy < 0 || justJumped) {
                 this.player.play('player_jump', true);
             } else {
                 this.player.play('player_fall', true);
@@ -854,5 +925,19 @@ export class GameScene extends Phaser.Scene {
         });
         this.hazardGroup.getChildren().forEach((h: Phaser.GameObjects.GameObject) => (h as Hazard).update());
         this.platformGroup.getChildren().forEach((p: Phaser.GameObjects.GameObject) => (p as MovingPlatform).update(delta));
+        this.punchBoxGroup.getChildren().forEach((go: Phaser.GameObjects.GameObject) => {
+            const box = go as PunchBox;
+            box.update();
+            if (!box.isPunching) return;
+            // Manual AABB — same pattern as switches. The extended span is 3 tiles
+            // (arm1 + arm2 + fist) reaching out in box.extendDir, centred 1 tile out.
+            // Vertical tolerance is generous (24px) so alignment needn't be pixel-perfect.
+            const hzCx = box.x + box.extendDir * 8; // centre of the 3-tile extended span
+            const pb   = this.player.Body;
+            if (pb.x < hzCx + 12 && pb.x + pb.width > hzCx - 12 &&
+                pb.y < box.y + 24 && pb.y + pb.height > box.y - 24) {
+                box.applyImpulse(this.player);
+            }
+        });
     }
 }

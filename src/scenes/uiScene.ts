@@ -2,17 +2,19 @@ import Phaser from 'phaser';
 import { getSetting } from '../systems/settingsManager';
 
 export class UIScene extends Phaser.Scene {
-    private levelText!:     Phaser.GameObjects.Text;
-    private deathCount!:    Phaser.GameObjects.Text;
-    private skullIcon!:     Phaser.GameObjects.Image;
-    private deathEmitter!:  Phaser.GameObjects.Particles.ParticleEmitter;
+    private levelText!:          Phaser.GameObjects.Text;
+    private levelNameText!:      Phaser.GameObjects.Text;
+    private deathCount!:         Phaser.GameObjects.Text;
+    private skullIcon!:          Phaser.GameObjects.Image;
+    private deathEmitter!:       Phaser.GameObjects.Particles.ParticleEmitter;
+    private showDeathCounter:    boolean = true;
 
     constructor() {
         super({ key: 'ui' });
     }
 
     preload() {
-        this.load.image('skull', 'assets/skull.png');
+        this.load.image('skull', 'assets/Skull-Icon.png');
     }
 
     create() {
@@ -26,8 +28,13 @@ export class UIScene extends Phaser.Scene {
         const level = this.game.registry.get('currentLevel') as string | undefined;
         if (level) this.showLevel(level);
 
+        const levelName = this.game.registry.get('levelName') as string | undefined;
+        if (levelName) this.showLevelName(levelName);
+
         const deaths = this.game.registry.get('deathCt') as number | undefined;
-        this.deathCount.setText(`${deaths ?? 0}`);
+        if (deaths !== undefined) this.deathCount.setText(`${deaths}`);
+
+        this.showDeathCounter = getSetting('deathCounterEnabled');
 
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
     }
@@ -41,27 +48,75 @@ export class UIScene extends Phaser.Scene {
         });
     }
 
-    private buildDeathCountDisplay() {
-        this.skullIcon = this.add.image(24, 80, 'skull')
-            .setOrigin(0, 0)
-            .setDisplaySize(18, 18);
+    private showLevelName(name: string) {
+        document.fonts.load('12px "Press Start 2P"').then(() => {
+            if (this.levelNameText?.scene?.sys.isActive()) {
+                this.levelNameText.setText(name).setVisible(!!name);
+            }
+        });
+    }
 
-        this.deathCount = this.add.text(48, 80, '0', {
-                fontFamily: '"Press Start 2P"',
-                fontSize:   '18px',
-                color:      '#c0c0c0',
+    private buildDeathCountDisplay() {
+        this.skullIcon = this.add.image(0, 0, 'skull')
+            .setDisplaySize(16, 16)
+            .setOrigin(0, 0.5)
+            .setVisible(false);
+
+        this.deathCount = this.add.text(0, 0, '0', {
+                fontFamily:      '"Press Start 2P"',
+                fontSize:        '18px',
+                color:           '#c0c0c0',
+                stroke:          '#000000',
+                strokeThickness: 2,
             })
-            .setVisible(true);
+            .setOrigin(0, 0.5)
+            .setVisible(false);
+    }
+
+    update() {
+        const gameScene = this.scene.get('main') as any;
+        const player = gameScene?.player;
+        if (!player?.active || !this.showDeathCounter) {
+            this.skullIcon.setVisible(false);
+            this.deathCount.setVisible(false);
+            return;
+        }
+
+        const gameCam = gameScene.cameras.main;
+        const screenX = (player.x - gameCam.worldView.x) * gameCam.zoom;
+        const screenY = (player.y - gameCam.worldView.y) * gameCam.zoom;
+
+        // Player sprite is 16 world px tall; at zoom 4 = 64 screen px. Sit cluster above the top.
+        const counterY = screenY - 50;
+
+        // Center [skull][gap][number] cluster over the player's horizontal midpoint
+        const skullW = 16;
+        const gap    = 4;
+        const startX = screenX - (skullW + gap + this.deathCount.width) / 2;
+
+        this.skullIcon.setPosition(startX, counterY).setVisible(true);
+        this.deathCount.setPosition(startX + skullW + gap, counterY).setVisible(true);
     }
 
     // level display 
 
     private buildLevelDisplay() {
         this.levelText = this.add.text(24, 24, '', {
-                fontFamily: '"Press Start 2P"',
-                fontSize:   '36px',
-                color:      '#c0c0c0',
-                padding:    { top: 6 },
+                fontFamily:      '"Press Start 2P"',
+                fontSize:        '36px',
+                color:           '#c0c0c0',
+                stroke:          '#000000',
+                strokeThickness: 2,
+                padding:         { top: 6 },
+            })
+            .setVisible(false);
+
+        this.levelNameText = this.add.text(24, 66, '', {
+                fontFamily:      '"Press Start 2P"',
+                fontSize:        '12px',
+                color:           '#c0c0c0',
+                stroke:          '#000000',
+                strokeThickness: 2,
             })
             .setVisible(false);
     }
@@ -102,8 +157,16 @@ export class UIScene extends Phaser.Scene {
             this.showLevel(value);
         }, this);
 
+        this.game.registry.events.on('changedata-levelName', (_: any, value: string) => {
+            this.showLevelName(value);
+        }, this);
+
         this.game.registry.events.on('changedata-deathCt', (_: any, value: number) => {
             this.deathCount.setText(`${value}`);
+        }, this);
+
+        this.game.events.on('setting-changed', ({ key, value }: { key: string; value: any }) => {
+            if (key === 'deathCounterEnabled') this.showDeathCounter = value;
         }, this);
     }
 
@@ -113,6 +176,8 @@ export class UIScene extends Phaser.Scene {
         this.game.events.off('level-changed',    this.showLevel, this);
         this.game.events.off('player-death-fx',  undefined, this);
         this.game.registry.events.off('changedata-currentLevel', undefined, this);
+        this.game.registry.events.off('changedata-levelName',    undefined, this);
         this.game.registry.events.off('changedata-deathCt',      undefined, this);
+        this.game.events.off('setting-changed',                  undefined, this);
     }
 }

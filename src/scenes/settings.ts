@@ -59,6 +59,11 @@ export class SettingsScene extends Phaser.Scene {
             this.game.events.emit('setting-changed', { key: 'scanlinesEnabled', value: v });
         }));
 
+        overlay.appendChild(this.makeCheckbox('DEATH COUNTER', getSetting('deathCounterEnabled'), (v) => {
+            setSetting('deathCounterEnabled', v);
+            this.game.events.emit('setting-changed', { key: 'deathCounterEnabled', value: v });
+        }));
+
         // Buttons
         const recalibrateBtn = this.makeButton('RECALIBRATE');
         recalibrateBtn.addEventListener('click', () => {
