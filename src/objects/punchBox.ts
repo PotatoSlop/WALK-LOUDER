@@ -1,11 +1,8 @@
 import Phaser from 'phaser';
 import { Switch } from './switches';
 
-// Arm-extension tile — one row below the body on the sheet (frame index).
 const ARM_FRAME = 193;
 const PUNCH_DURATION_MS = 200;
-// How long the player loses horizontal control after being hit, so the impulse
-// isn't instantly cancelled by their own input/friction.
 const KNOCKBACK_MS = 220;
 const TILE = 8;
 
@@ -13,7 +10,7 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
     forceX: number;
     forceY: number;
     isPunching = false;
-    extendDir: number; // -1 = punch left, +1 = punch right (from the tile's H-flip)
+    extendDir: number; // -1 = punch left, +1 = punch right
 
     private linkedSwitch: Switch | null = null;
     private prevPowered = false;
@@ -43,7 +40,6 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
         this.extendDir = flipped ? -1 : 1;
         this.restX = cx;
 
-        // The placed tile IS the fist — keep its art and H-flip exactly as authored in Tiled.
         this.fistSprite = scene.add.image(cx, cy, 'tileSprites', fistFrame)
             .setOrigin(0.5, 0.5).setDepth(50).setFlipX(flipped);
 

@@ -13,7 +13,7 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
     private speed: number;
     private headingToEnd: boolean = true;
     private arrived: boolean = false;
-    private attachedHazards: { hazard: Hazard; offsetX: number; offsetY: number }[] = [];
+    private attached: { obj: { syncPosition(x: number, y: number): void }; offsetX: number; offsetY: number }[] = [];
     private linkedSwitch: Switch | null = null;
     private switchInverted: boolean = false;
 
@@ -47,8 +47,8 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         this.switchInverted = inverted;
     }
 
-    attachHazard(hazard: Hazard, offsetX: number, offsetY: number) {
-        this.attachedHazards.push({ hazard, offsetX, offsetY });
+    attachObj(obj: { syncPosition(x: number, y: number): void }, offsetX: number, offsetY: number) {
+        this.attached.push({ obj, offsetX, offsetY });
     }
 
     update(delta: number) {
@@ -82,8 +82,8 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
             if (reached) this.arrived = true;
         }
 
-        this.attachedHazards.forEach(({ hazard, offsetX, offsetY }) => {
-            hazard.syncPosition(this.x + offsetX, this.y + offsetY);
+        this.attached.forEach(({ obj, offsetX, offsetY }) => {
+            obj.syncPosition(this.x + offsetX, this.y + offsetY);
         });
 
         if (this.tileSprite) this.tileSprite.setPosition(Math.round(this.x), Math.round(this.y));

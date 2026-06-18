@@ -57,4 +57,10 @@ export class Switch extends Phaser.GameObjects.Rectangle {
             this.tileSprite.setFrame(this.baseFrame + (this.powered ? this.activeFrameOffset : 0));
         }
     }
+
+    syncPosition(x: number, y: number) {
+        this.setPosition(x, y);
+        // tileSprite uses origin (0,1) — convert center to bottom-left corner
+        if (this.tileSprite) this.tileSprite.setPosition(x - this.width / 2, y + this.height / 2);
+    }
 }

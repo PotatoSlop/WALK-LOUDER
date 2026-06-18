@@ -7,6 +7,7 @@ import { Key } from '../objects/key';
 import { MovingPlatform } from '../objects/movingPlatform';
 import { Switch } from '../objects/switches';
 import { PunchBox } from '../objects/punchBox';
+import { Box } from '../objects/box';
 import { VolumeBarScene, volumeToTintColor } from './volumeBarScene';
 import {SettingsScene} from './settings';
 import { getSetting } from '../systems/settingsManager';
@@ -54,10 +55,11 @@ export class GameScene extends Phaser.Scene {
     switchGroup: any;
     bulletGroup: any;
     punchBoxGroup: any;
+    boxGroup: any;
     mic: any;
     escKey: any;
 
-    distortionAmount: number = 1.08;
+    distortionAmount: number = 1.1;
     private barrelFilter: any;
     private controlsHint!: Phaser.GameObjects.Image;
     private moveLabel!: Phaser.GameObjects.Text;
@@ -79,7 +81,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     init(data: { levelId?: string }) {
-        this.currentLevelId = data.levelId ?? 'level12';
+        this.currentLevelId = data.levelId ?? 'level13';
         this.transitioning = false;
         this.deathCt = this.game.registry.get('deathCt') ?? 0;
     }
@@ -101,6 +103,7 @@ export class GameScene extends Phaser.Scene {
         this.platformGroup = this.add.group();
         this.bulletGroup = this.add.group();
         this.punchBoxGroup = this.add.group();
+        this.boxGroup = this.add.group();
 
         this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
@@ -210,20 +213,19 @@ export class GameScene extends Phaser.Scene {
         // Spawn switches first so linkedSwitchId references resolve for everything else
         const switchById = new Map<number, Switch>();
         const doorById = new Map<number, Door>();
+        const platformById = new Map<number, MovingPlatform>();
         // platformGroups: maps endTargetId → platforms sharing that target, for slot distribution
         const platformGroups = new Map<number, { platform: MovingPlatform; cx: number; cy: number }[]>();
         const interLayer = map.getObjectLayer('Interactables');
         if (interLayer) {
             for (const obj of interLayer.objects) {
-                if (this.getObjectType(obj) === 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups);
+                if (this.getObjectType(obj) === 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups, platformById);
             }
             for (const obj of interLayer.objects) {
-                if (this.getObjectType(obj) !== 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups);
+                if (this.getObjectType(obj) !== 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups, platformById);
             }
         }
 
-        // Distribute platforms that share an endTarget across its rectangle as individual slots
-        // so they don't all collapse to the center point.
         for (const [endTargetId, entries] of platformGroups) {
             if (entries.length <= 1) continue;
             const target = objectById.get(endTargetId);
@@ -262,6 +264,10 @@ export class GameScene extends Phaser.Scene {
         //  Collision callbacks
         this.physics.add.collider(this.player, platformLayer!);
         this.physics.add.collider(this.player, this.platformGroup);
+        this.physics.add.collider(this.player, this.boxGroup);
+        this.physics.add.collider(this.boxGroup, platformLayer!);
+        this.physics.add.collider(this.boxGroup, this.platformGroup);
+        this.physics.add.collider(this.boxGroup, this.boxGroup);
 
         platformLayer!.setCollision([42]);
 
@@ -307,6 +313,8 @@ export class GameScene extends Phaser.Scene {
         // which avoids rubber-banding conflicts between world bounds and static bodies.
 
         this.physics.add.collider(this.bulletGroup, platformLayer! || this.player, bullet => bullet.destroy());
+        this.physics.add.collider(this.bulletGroup, this.platformGroup, bullet => bullet.destroy());
+        this.physics.add.overlap(this.bulletGroup, this.boxGroup, bullet => bullet.destroy());
         this.physics.add.overlap(this.player, this.bulletGroup, p => (p as Player).death());
 
         this.cursors = this.input.keyboard!.createCursorKeys();
@@ -548,6 +556,18 @@ export class GameScene extends Phaser.Scene {
                 }
                 break;
             }
+            case 'box': {
+                const friction = this.getTiledProp<number>(obj, 'friction') ?? 0.6;
+                const mass     = this.getTiledProp<number>(obj, 'mass') ?? 1;
+                const swId     = this.getTiledProp<number>(obj, 'linkedSwitchId') || undefined;
+                const sw       = swId ? switchById.get(swId) : undefined;
+                const box = new Box(this, cx, cy, w, h, friction * 500, mass);
+                box.setAlpha(0);
+                box.tileSprite = sprite;
+                if (sw) box.linkSwitch(sw);
+                this.boxGroup.add(box);
+                break;
+            }
         }
     }
 
@@ -775,35 +795,69 @@ export class GameScene extends Phaser.Scene {
 
     private spawnTurret(
         obj: Phaser.Types.Tilemaps.TiledObject,
-        _cx: number, _cy: number
+        cx: number, cy: number
     ) {
-        // The placed tile is the bottom-left of the 2×2 sprite (Tiled bottom-left origin).
-        // Build the full 16×16 sprite rightward and upward from that anchor.
-        const cx = obj.x! + 8;
-        const cy = obj.y! - 8;
+        // The flip/rotation flags baked into the tile in Tiled ARE the orientation data.
+        // Phaser strips them out of obj.gid before we see it and exposes them as booleans.
+        const H = !!obj.flippedHorizontal;
+        const V = !!obj.flippedVertical;
+        const D = !!obj.flippedAntiDiagonal;
 
-        // H-flip on the placed tile encodes facing direction — no per-object property needed.
-        // Phaser strips Tiled's flip bits from gid and exposes them as flippedHorizontal.
-        const hFlip = !!obj.flippedHorizontal;
-        let direction = this.getTiledProp<string>(obj, 'direction') ?? 'right';
-        if (hFlip) direction = direction === 'right' ? 'left' : direction === 'left' ? 'right' : direction;
+        // Standard Tiled → Phaser transform conversion:
+        //   D=0  H=0  V=0  →  no transform
+        //   D=0  H=1  V=0  →  H-flip  (scaleX = -1)
+        //   D=0  H=0  V=1  →  V-flip  (scaleY = -1)
+        //   D=0  H=1  V=1  →  180°
+        //   D=1  H=1  V=0  →  90° CW
+        //   D=1  H=0  V=1  →  90° CCW
+        //   D=1  H=0  V=0  →  anti-diagonal (90° CW + V-flip)
+        //   D=1  H=1  V=1  →  90° CCW + H-flip
+        let angle = 0, scaleX = 1, scaleY = 1;
+        if (D) {
+            if      ( H && !V) { angle =  90; }
+            else if (!H &&  V) { angle = -90; }
+            else if (!H && !V) { angle =  90; scaleY = -1; }
+            else               { angle = -90; scaleX = -1; }
+        } else {
+            if      (H && V)   { angle = 180; }
+            else if (H)        { scaleX = -1; }
+            else if (V)        { scaleY = -1; }
+        }
+
+        // Bullet direction: H-flip means fire left, no H-flip means fire right.
+        // (Extend with D-flip cases if up/down turrets are ever needed.)
+        const direction: 'left' | 'right' = H ? 'left' : 'right';
 
         const fireInterval = this.getTiledProp<number>(obj, 'fireInterval') ?? 1000;
-        const container = this.add.container(cx, cy).setDepth(50);
+
+        // The placed anchor tile is always the BODY of the turret.
+        // The barrel expands away from it in the firing direction.
+        //
+        //   Right-facing (H=false): body is the bottom-LEFT tile of the 2×2
+        //     → container centre is 4 px right and 4 px up from the anchor
+        //   Left-facing  (H=true) : body is the bottom-RIGHT tile of the 2×2
+        //     → container centre is 4 px LEFT and 4 px up from the anchor
+        //
+        // The scaleX = -1 applied to the container then mirrors all four tile
+        // images in-place, so GID 56 (body) visually ends up at the anchor world
+        // position in both cases.
+        const ocx = H ? -4 : 4;
+        const ocy = -4;  // top row is always one tile above the body row
+
+        const container = this.add.container(cx + ocx, cy + ocy).setDepth(50);
         const offsets: [number, number][] = [[-4, -4], [4, -4], [-4, 4], [4, 4]];
         for (let i = 0; i < 4; i++) {
             container.add(this.add.image(offsets[i][0], offsets[i][1], 'tileSprites', TURRET_TILE_GIDS[i] - 1));
         }
-        const dirAngles: Record<string, number> = { right: 0, down: 90, up: -90 };
-        container.setAngle(dirAngles[direction] ?? 0);
-        if (direction === 'left') container.setScale(-1, 1);
+        // Apply the Tiled flip/rotation to the container
+        container.setAngle(angle).setScale(scaleX, scaleY);
 
-        const turret = new Hazard(this, cx, cy, 16, 16, true);
+        // Hitbox covers only the anchor tile (8×8) — not the full 2×2 block.
+        const turret = new Hazard(this, cx, cy, 8, 8, true);
         turret.setAlpha(0);
         turret.tileSprite = container;
         turret.direction = direction as 'left' | 'right';
         this.hazardGroup.add(turret);
-        
 
         this.time.addEvent({
             delay: fireInterval,
@@ -915,16 +969,25 @@ export class GameScene extends Phaser.Scene {
 
         this.switchGroup.getChildren().forEach((s: Phaser.GameObjects.GameObject) => {
             const sw = s as Switch;
-            const pb = this.player.Body;
             const hw = sw.width / 2, hh = sw.height / 2;
+            const pb = this.player.Body;
             if (pb.x < sw.x + hw && pb.x + pb.width > sw.x - hw &&
                 pb.y < sw.y + hh && pb.y + pb.height > sw.y - hh) {
                 sw.onOverlap();
+            }
+            for (const b of this.boxGroup.getChildren()) {
+                const bb = (b as Box).Body;
+                if (!b.active) continue;
+                if (bb.x < sw.x + hw && bb.x + bb.width > sw.x - hw &&
+                    bb.y < sw.y + hh && bb.y + bb.height > sw.y - hh) {
+                    sw.onOverlap();
+                }
             }
             sw.tick();
         });
         this.hazardGroup.getChildren().forEach((h: Phaser.GameObjects.GameObject) => (h as Hazard).update());
         this.platformGroup.getChildren().forEach((p: Phaser.GameObjects.GameObject) => (p as MovingPlatform).update(delta));
+        this.boxGroup.getChildren().forEach((b: Phaser.GameObjects.GameObject) => (b as Box).update());
         this.punchBoxGroup.getChildren().forEach((go: Phaser.GameObjects.GameObject) => {
             const box = go as PunchBox;
             box.update();
