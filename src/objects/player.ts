@@ -34,6 +34,11 @@ export class Player extends Phaser.GameObjects.Sprite {
         scene.physics.add.existing(this);
         this.Body = this.body as Phaser.Physics.Arcade.Body;
         this.Body.setSize(4, 15);
+        // setSize auto-centers the 15px-tall body in the 16px frame (offset y=0.5),
+        // leaving the bottom 0.5px row of the sprite hanging below the body — the
+        // feet visibly sink into whatever's underfoot. Offset down by 1 so the body
+        // bottom sits on the frame's bottom row; the slack moves to the head.
+        this.Body.setOffset(2, 1);
         this.Body.setDragY(27);
         this.Body.setCollideWorldBounds(true);
         this.setDepth(100);
@@ -64,6 +69,13 @@ export class Player extends Phaser.GameObjects.Sprite {
         }
     }
 
+    // Grounded if resting on a tile/world-bound (blocked.down) OR on a dynamic
+    // body such as a Box or moving platform (touching.down). blocked alone misses
+    // dynamic-body contacts, which made the player "fall" while atop a box.
+    get grounded(): boolean {
+        return this.Body.blocked.down || this.Body.touching.down;
+    }
+
     moveLeft(volume: number) {
         this.facing = 'left';
         const speed = this.BASE_MOVEMENT_SPEED + (volume * this.MAX_SPEED_MULT * this.BASE_MOVEMENT_SPEED)
@@ -78,7 +90,7 @@ export class Player extends Phaser.GameObjects.Sprite {
 
     jump(volume: number) {
         const boostActive = performance.now() - this.jumpTime < this.jumpBoostWindow;
-        if (!this.Body.blocked.down && performance.now() - this.lastGroundedTime > this.CoyoteTime) return;
+        if (!this.grounded && performance.now() - this.lastGroundedTime > this.CoyoteTime) return;
         if (boostActive) return;
         this.lastGroundedTime = 0;
         this.lastJumpInputTime = 0;

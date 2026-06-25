@@ -213,16 +213,15 @@ export class GameScene extends Phaser.Scene {
         // Spawn switches first so linkedSwitchId references resolve for everything else
         const switchById = new Map<number, Switch>();
         const doorById = new Map<number, Door>();
-        const platformById = new Map<number, MovingPlatform>();
         // platformGroups: maps endTargetId → platforms sharing that target, for slot distribution
         const platformGroups = new Map<number, { platform: MovingPlatform; cx: number; cy: number }[]>();
         const interLayer = map.getObjectLayer('Interactables');
         if (interLayer) {
             for (const obj of interLayer.objects) {
-                if (this.getObjectType(obj) === 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups, platformById);
+                if (this.getObjectType(obj) === 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups);
             }
             for (const obj of interLayer.objects) {
-                if (this.getObjectType(obj) !== 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups, platformById);
+                if (this.getObjectType(obj) !== 'switch') this.spawnInteractable(obj, switchById, doorById, objectById, platformGroups);
             }
         }
 
@@ -906,7 +905,7 @@ export class GameScene extends Phaser.Scene {
                 this.player.moveRight(vol);
             }
         } else {
-            if (this.player.Body.blocked.down) {
+            if (this.player.grounded) {
                 // Decelerate relative to whatever surface is below. On a moving
                 // platform, Phaser's SeparateY friction already sets player.vx =
                 // platform.vx each frame. Applying a flat 0.82 multiplier then
@@ -921,7 +920,7 @@ export class GameScene extends Phaser.Scene {
             }
         }
 
-        if (this.player.Body.blocked.down && performance.now() - this.player.jumpTime > 100) {
+        if (this.player.grounded && performance.now() - this.player.jumpTime > 100) {
             this.player.lastGroundedTime = performance.now();
         }
 
@@ -941,7 +940,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         // Player animation
-        const isGrounded = this.player.Body.blocked.down;
+        const isGrounded = this.player.grounded;
         const vy = this.player.Body.velocity.y;
         const vx = Math.abs(this.player.Body.velocity.x);
         // Grace window: keep airborne animation for 100ms after a jump fires so that
