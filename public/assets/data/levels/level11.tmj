@@ -298,7 +298,7 @@
                         {
                          "name":"targetLevel",
                          "type":"string",
-                         "value":"12"
+                         "value":"level12"
                         }],
                  "rotation":0,
                  "type":"",

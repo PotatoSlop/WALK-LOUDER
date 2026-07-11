@@ -393,6 +393,11 @@
                          "name":"linkedSwitchId",
                          "type":"object",
                          "value":188
+                        }, 
+                        {
+                         "name":"mode",
+                         "type":"string",
+                         "value":"driven"
                         }],
                  "rotation":0,
                  "type":"",
@@ -417,6 +422,11 @@
                          "name":"linkedSwitchId",
                          "type":"object",
                          "value":188
+                        }, 
+                        {
+                         "name":"mode",
+                         "type":"string",
+                         "value":"driven"
                         }],
                  "rotation":0,
                  "type":"",
@@ -441,6 +451,11 @@
                          "name":"linkedSwitchId",
                          "type":"object",
                          "value":188
+                        }, 
+                        {
+                         "name":"mode",
+                         "type":"string",
+                         "value":"driven"
                         }],
                  "rotation":0,
                  "type":"",
@@ -654,7 +669,7 @@
                  "name":"",
                  "opacity":1,
                  "rotation":0,
-                 "type":"",
+                 "type":"endPoint",
                  "visible":true,
                  "width":8,
                  "x":168,

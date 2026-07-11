@@ -482,7 +482,7 @@
                         {
                          "name":"targetLevel",
                          "type":"string",
-                         "value":"11"
+                         "value":"level11"
                         }],
                  "rotation":0,
                  "type":"",

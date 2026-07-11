@@ -3,22 +3,22 @@
  "infinite":false,
  "layers":[
         {
-         "data":[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 42, 42, 42, 0, 0, 0, 42,
-            0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0, 0, 42, 42, 42, 0, 0, 0, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 0, 0, 0, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 0, 0, 0, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42,
-            42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0, 42, 42, 42, 42, 42, 42, 42,
+         "data":[42, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 42,
+            42, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 42,
+            0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0, 42, 0, 0, 42, 42, 0, 0, 42, 0, 42, 0, 0, 42, 42, 42,
+            0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            42, 42, 42, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 42, 42, 42, 0, 42, 42, 42, 42, 0, 0, 42, 42, 42, 0, 0, 42, 42, 42, 42, 0, 0, 42, 0, 0, 42, 42, 0,
+            0, 0, 0, 42, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 0, 0, 42, 0, 0,
+            0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 42, 0, 0,
+            0, 42, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0, 0, 0, 42, 0, 0, 42, 0, 0,
+            0, 42, 42, 42, 42, 42, 42, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 0, 0, 42, 42, 42,
+            0, 0, 0, 0, 0, 0, 42, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42,
+            0, 0, 0, 0, 0, 0, 42, 0, 42, 0, 0, 0, 0, 42, 42, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42,
+            42, 42, 42, 42, 42, 42, 42, 0, 42, 42, 42, 42, 0, 42, 0, 0, 42, 0, 0, 42, 0, 0, 42, 42, 42, 42, 42, 42, 0, 42,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42,
+            42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -40,15 +40,27 @@
          "objects":[
                 {
                  "height":16,
-                 "id":10,
+                 "id":25,
                  "name":"",
                  "opacity":1,
                  "rotation":0,
-                 "type":"endPoint",
+                 "type":"",
                  "visible":true,
                  "width":8,
-                 "x":184,
+                 "x":128,
                  "y":104
+                }, 
+                {
+                 "height":8,
+                 "id":26,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":16,
+                 "x":160,
+                 "y":96
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -86,50 +98,107 @@
          "name":"Interactables",
          "objects":[
                 {
-                 "gid":772,
+                 "gid":64,
                  "height":8,
-                 "id":2,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"switchType",
-                         "type":"string",
-                         "value":"button"
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":144,
-                 "y":120
-                }, 
-                {
-                 "gid":445,
-                 "height":8,
-                 "id":8,
+                 "id":3,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
                          "name":"endTarget",
                          "type":"object",
-                         "value":10
+                         "value":26
                         }, 
                         {
                          "name":"linkedSwitchId",
                          "type":"object",
-                         "value":2
+                         "value":24
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":184,
-                 "y":136
+                 "x":160,
+                 "y":24
                 }, 
                 {
-                 "gid":485,
+                 "gid":66,
+                 "height":8,
+                 "id":4,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":26
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":24
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":168,
+                 "y":24
+                }, 
+                {
+                 "gid":85,
+                 "height":8,
+                 "id":5,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":216,
+                 "y":96
+                }, 
+                {
+                 "gid":45,
+                 "height":8,
+                 "id":6,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":216,
+                 "y":88
+                }, 
+                {
+                 "gid":64,
+                 "height":8,
+                 "id":7,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":128,
+                 "y":48
+                }, 
+                {
+                 "gid":66,
+                 "height":8,
+                 "id":8,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":136,
+                 "y":48
+                }, 
+                {
+                 "gid":45,
                  "height":8,
                  "id":9,
                  "name":"",
@@ -138,41 +207,59 @@
                         {
                          "name":"endTarget",
                          "type":"object",
-                         "value":10
+                         "value":33
                         }, 
                         {
                          "name":"linkedSwitchId",
                          "type":"object",
-                         "value":2
+                         "value":37
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":184,
-                 "y":144
+                 "x":8,
+                 "y":48
                 }, 
                 {
-                 "gid":718,
+                 "gid":85,
                  "height":8,
-                 "id":13,
+                 "id":10,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"keyType",
-                         "type":"string",
-                         "value":"1314"
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":33
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":37
                         }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":8,
+                 "y":56
+                }, 
+                {
+                 "gid":85,
+                 "height":8,
+                 "id":13,
+                 "name":"",
+                 "opacity":1,
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
                  "x":216,
-                 "y":112
+                 "y":40
                 }, 
                 {
-                 "gid":772,
+                 "gid":85,
                  "height":8,
                  "id":14,
                  "name":"",
@@ -181,73 +268,367 @@
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":216,
-                 "y":120
+                 "x":80,
+                 "y":64
                 }, 
                 {
-                 "gid":522,
+                 "gid":85,
+                 "height":8,
+                 "id":15,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":32
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":24
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":80,
+                 "y":16
+                }, 
+                {
+                 "gid":45,
+                 "height":8,
+                 "id":16,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":216,
+                 "y":32
+                }, 
+                {
+                 "gid":45,
+                 "height":8,
+                 "id":17,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":80,
+                 "y":56
+                }, 
+                {
+                 "gid":45,
                  "height":8,
                  "id":18,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"friction",
-                         "type":"float",
-                         "value":0.8
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":32
                         }, 
                         {
-                         "name":"mass",
-                         "type":"int",
-                         "value":2
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":24
                         }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":80,
+                 "y":8
+                }, 
+                {
+                 "gid":64,
+                 "height":8,
+                 "id":19,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":200,
+                 "y":56
+                }, 
+                {
+                 "gid":66,
+                 "height":8,
+                 "id":20,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":208,
+                 "y":56
+                }, 
+                {
+                 "gid":45,
+                 "height":8,
+                 "id":22,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":25
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":39
+                        }, 
+                        {
+                         "name":"mode",
+                         "type":"string",
+                         "value":"driven"
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":128,
+                 "y":80
+                }, 
+                {
+                 "gid":85,
+                 "height":8,
+                 "id":23,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":25
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":39
+                        }, 
+                        {
+                         "name":"mode",
+                         "type":"string",
+                         "value":"driven"
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":128,
+                 "y":88
+                }, 
+                {
+                 "gid":352,
+                 "height":8,
+                 "id":24,
+                 "name":"",
+                 "opacity":1,
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
                  "x":32,
-                 "y":104
+                 "y":96
                 }, 
                 {
-                 "gid":522,
                  "height":8,
-                 "id":19,
+                 "id":27,
                  "name":"",
                  "opacity":1,
-                 "properties":[
-                        {
-                         "name":"friction",
-                         "type":"float",
-                         "value":0.8
-                        }, 
-                        {
-                         "name":"mass",
-                         "type":"int",
-                         "value":2
-                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":16,
+                 "x":200,
+                 "y":16
+                }, 
+                {
+                 "height":16,
+                 "id":28,
+                 "name":"",
+                 "opacity":1,
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
                  "x":192,
-                 "y":56
+                 "y":24
                 }, 
                 {
-                 "gid":778,
+                 "height":16,
+                 "id":29,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":152,
+                 "y":80
+                }, 
+                {
                  "height":8,
-                 "id":54,
+                 "id":30,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":16,
+                 "x":88,
+                 "y":40
+                }, 
+                {
+                 "height":16,
+                 "id":31,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":104,
+                 "y":48
+                }, 
+                {
+                 "height":16,
+                 "id":32,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":80,
+                 "y":24
+                }, 
+                {
+                 "height":16,
+                 "id":33,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":8,
+                 "y":16
+                }, 
+                {
+                 "gid":352,
+                 "height":8,
+                 "id":35,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":176,
+                 "y":72
+                }, 
+                {
+                 "gid":352,
+                 "height":8,
+                 "id":36,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":224,
+                 "y":16
+                }, 
+                {
+                 "gid":352,
+                 "height":8,
+                 "id":37,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":200,
+                 "y":120
+                }, 
+                {
+                 "gid":352,
+                 "height":8,
+                 "id":38,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":56,
+                 "y":16
+                },
+            
+                {
+                 "gid":352,
+                 "height":8,
+                 "id":39,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":0,
+                 "y":32
+                }, 
+                {
+                 "gid":352,
+                 "height":8,
+                 "id":41,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":224,
+                 "y":72
+                }, 
+                {
+                 "gid":352,
+                 "height":8,
+                 "id":45,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":112,
+                 "y":120
+                }, 
+                {
+                 "gid":356,
+                 "height":8,
+                 "id":46,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"keyType",
-                         "type":"string",
-                         "value":"1314"
-                        }, 
-                        {
-                         "name":"targetLevel",
-                         "type":"string",
-                         "value":"level14"
+                         "name":"linkedDoorId",
+                         "type":"object",
+                         "value":47
                         }],
                  "rotation":0,
                  "type":"",
@@ -257,23 +638,23 @@
                  "y":32
                 }, 
                 {
-                 "gid":758,
+                 "gid":376,
                  "height":8,
-                 "id":55,
+                 "id":47,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"linkedDoorId",
-                         "type":"object",
-                         "value":54
+                         "name":"targetLevel",
+                         "type":"string",
+                         "value":"17"
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
                  "x":64,
-                 "y":24
+                 "y":40
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -285,249 +666,7 @@
          "draworder":"topdown",
          "id":8,
          "name":"Hazards",
-         "objects":[
-                {
-                 "gid":2147484104,
-                 "height":8,
-                 "id":4,
-                 "name":"",
-                 "opacity":1,
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":200,
-                 "y":120
-                }, 
-                {
-                 "gid":452,
-                 "height":8,
-                 "id":27,
-                 "name":"",
-                 "opacity":1,
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":48,
-                 "y":80
-                }, 
-                {
-                 "gid":452,
-                 "height":8,
-                 "id":43,
-                 "name":"",
-                 "opacity":1,
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":56,
-                 "y":80
-                }, 
-                {
-                 "gid":452,
-                 "height":8,
-                 "id":44,
-                 "name":"",
-                 "opacity":1,
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":40,
-                 "y":80
-                }, 
-                {
-                 "gid":2147483704,
-                 "height":8,
-                 "id":53,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"fireInterval",
-                         "type":"int",
-                         "value":2000
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":232,
-                 "y":72
-                }, 
-                {
-                 "gid":92,
-                 "height":8,
-                 "id":57,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"linkedSwitchId",
-                         "type":"object",
-                         "value":14
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":104,
-                 "y":80
-                }, 
-                {
-                 "gid":92,
-                 "height":8,
-                 "id":58,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"linkedSwitchId",
-                         "type":"object",
-                         "value":14
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":112,
-                 "y":80
-                }, 
-                {
-                 "gid":92,
-                 "height":8,
-                 "id":59,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"linkedSwitchId",
-                         "type":"object",
-                         "value":14
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":120,
-                 "y":80
-                }, 
-                {
-                 "gid":92,
-                 "height":8,
-                 "id":60,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"linkedSwitchId",
-                         "type":"object",
-                         "value":14
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":88,
-                 "y":80
-                }, 
-                {
-                 "gid":92,
-                 "height":8,
-                 "id":61,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"linkedSwitchId",
-                         "type":"object",
-                         "value":14
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":72,
-                 "y":80
-                }, 
-                {
-                 "gid":92,
-                 "height":8,
-                 "id":62,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"linkedSwitchId",
-                         "type":"object",
-                         "value":14
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":80,
-                 "y":80
-                }, 
-                {
-                 "gid":92,
-                 "height":8,
-                 "id":63,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"linkedSwitchId",
-                         "type":"object",
-                         "value":14
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":136,
-                 "y":80
-                }, 
-                {
-                 "gid":92,
-                 "height":8,
-                 "id":64,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"linkedSwitchId",
-                         "type":"object",
-                         "value":14
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":144,
-                 "y":80
-                }, 
-                {
-                 "gid":92,
-                 "height":8,
-                 "id":65,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"linkedSwitchId",
-                         "type":"object",
-                         "value":14
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":152,
-                 "y":80
-                }],
+         "objects":[],
          "opacity":1,
          "type":"objectgroup",
          "visible":true,
@@ -535,7 +674,7 @@
          "y":0
         }],
  "nextlayerid":10,
- "nextobjectid":66,
+ "nextobjectid":48,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.12.1",

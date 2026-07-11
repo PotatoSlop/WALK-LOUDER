@@ -11,8 +11,6 @@ export class Switch extends Phaser.GameObjects.Rectangle {
 
     private touchingThisFrame: boolean = false;
     private wasTouching: boolean = false;
-    // Initialise to grace-window length so the switch starts in a clean "not touching"
-    // state — otherwise oneshot switches latch on at scene start before any overlap fires.
     private framesWithoutTouch: number = Switch.EXIT_GRACE_FRAMES;
     private static readonly EXIT_GRACE_FRAMES = 5;
 

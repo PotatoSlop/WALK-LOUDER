@@ -18,7 +18,7 @@ export class Box extends Phaser.GameObjects.Rectangle {
         scene.add.existing(this);
         scene.physics.add.existing(this, false);
         this.Body = this.body as Phaser.Physics.Arcade.Body;
-        this.Body.setCollideWorldBounds(true);
+        this.Body.setCollideWorldBounds(false);
         this.Body.setDragX(dragX);
         this.Body.setMass(mass);
     }

@@ -19,9 +19,7 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
     private headingToEnd: boolean = true;
     private linkedSwitch: Switch | null = null;
     private switchInverted: boolean = false;
-    // Bullet spawn Y offset from anchor centre (screen Y increases downward).
-    // 0 = body-tile centre = the dividing line between the bottom and top rows of the 2×2 sprite.
-    private BULLET_OFFSET = -1;
+    private BULLET_OFFSET = -1; // Y Offset for bullet pixel visual
 
     constructor(
         scene: Phaser.Scene,
@@ -55,9 +53,7 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
     setEnabled(state: boolean) {
         this.setVisible(state);
         this.setActive(state);
-        // StaticBody is missing 'enable' in Phaser's TS types but it exists at runtime
         (this.body as any).enable = state;
-        // Also show/hide the tile sprite visual
         if (this.tileSprite) this.tileSprite.setVisible(state);
     }
 
@@ -87,12 +83,8 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
             }
         }
 
-        // Static hazards (turrets, fixed spikes) never move — their tileSprite was
-        // placed at the correct world position at spawn time and must not be reset
-        // to the physics-body centre (which differs from the container centre for turrets).
         if (!this.active || this.isStatic) return;
 
-        // Keep tile sprite visual in sync with physics position (moving hazards only)
         if (this.tileSprite) {
             this.tileSprite.setPosition(this.x, this.y);
         }

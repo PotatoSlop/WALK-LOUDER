@@ -33,14 +33,14 @@ export class Player extends Phaser.GameObjects.Sprite {
         scene.add.existing(this);
         scene.physics.add.existing(this);
         this.Body = this.body as Phaser.Physics.Arcade.Body;
-        this.Body.setSize(4, 15);
-        // setSize auto-centers the 15px-tall body in the 16px frame (offset y=0.5),
-        // leaving the bottom 0.5px row of the sprite hanging below the body — the
-        // feet visibly sink into whatever's underfoot. Offset down by 1 so the body
-        // bottom sits on the frame's bottom row; the slack moves to the head.
-        this.Body.setOffset(2, 1);
+        this.Body.setSize(6, 14); 
+        this.Body.setOffset(1, 2);
         this.Body.setDragY(27);
         this.Body.setCollideWorldBounds(true);
+        // Cap velocity so per physics step (at 120fps) displacement stays under the
+        // thinnest platform body (8px) — prevents tunneling through moving platforms.
+        // Y cap == gravity terminal so fall feel is unchanged; jumps (~-275) sit well under it.
+        this.Body.setMaxVelocity(400, 640);
         this.setDepth(100);
 
         if (!scene.anims.exists('player_walk')) {
@@ -69,9 +69,6 @@ export class Player extends Phaser.GameObjects.Sprite {
         }
     }
 
-    // Grounded if resting on a tile/world-bound (blocked.down) OR on a dynamic
-    // body such as a Box or moving platform (touching.down). blocked alone misses
-    // dynamic-body contacts, which made the player "fall" while atop a box.
     get grounded(): boolean {
         return this.Body.blocked.down || this.Body.touching.down;
     }
@@ -112,17 +109,12 @@ export class Player extends Phaser.GameObjects.Sprite {
         this.Body.setVelocityX(this.Body.velocity.x * multiplier);
     }
 
-    // Timestamp (performance.now ms) until which an external force owns horizontal
-    // velocity. While active, the movement script must not rewrite velocity.x, so
-    // the impulse isn't immediately cancelled by input/friction (the rubber-band bug).
     knockbackUntil: number = 0;
 
     get inKnockback(): boolean {
         return performance.now() < this.knockbackUntil;
     }
 
-    // Apply a one-shot external impulse and open a knockback window. Friction still
-    // runs during the window, so the player decelerates to a natural stop.
     applyKnockback(vx: number, vy: number, durationMs: number) {
         this.Body.setVelocityX(vx);
         if (vy !== 0) this.Body.setVelocityY(vy);

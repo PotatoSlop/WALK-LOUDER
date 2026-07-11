@@ -31,6 +31,10 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         this.Body = this.body as Phaser.Physics.Arcade.Body;
         this.Body.setAllowGravity(false);
         this.Body.setImmovable(true);
+        // No implicit velocity transfer to touching bodies — riders are carried manually
+        // via PlayerController.getPlatformVelocityBelow(). Leaving friction on would also
+        // drag the player when they press into a moving platform's side (the "sticking" bug).
+        this.Body.setFriction(0, 0);
 
         this.startPos = { x, y };
         this.endPos = endPos ?? { x, y };
@@ -97,7 +101,14 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         const dx   = target.x - bx;
         const dy   = target.y - by;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const step = this.speed * (delta / 1000);
+        // Arrival threshold must cover at least one fixed physics tick of travel. The body
+        // moves ~speed/fps per physics step, but the render `delta` can be far smaller at
+        // high refresh rates — a threshold of speed*renderDelta would then be smaller than
+        // the actual per-tick step, so the body overshoots the target every tick and
+        // oscillates forever (velocity never zeroes, never "arrives"). Worse at high speed.
+        const fps  = this.scene.physics.world.fps || 60;
+        const dt   = Math.max(delta, 1000 / fps) / 1000;
+        const step = this.speed * dt;
 
         if (dist > step) {
             this.Body.setVelocityX((dx / dist) * this.speed);
