@@ -31,10 +31,6 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         this.Body = this.body as Phaser.Physics.Arcade.Body;
         this.Body.setAllowGravity(false);
         this.Body.setImmovable(true);
-        // No implicit velocity transfer to touching bodies — riders are carried manually
-        // via PlayerController.getPlatformVelocityBelow(). Leaving friction on would also
-        // drag the player when they press into a moving platform's side (the "sticking" bug).
-        this.Body.setFriction(0, 0);
 
         this.startPos = { x, y };
         this.endPos = endPos ?? { x, y };
@@ -60,7 +56,7 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
             const next = this.linkedSwitch.powered !== this.switchInverted;
             if (next !== this.powered) {
                 this.powered = next;
-                this.arrived = false; // target changed — start moving again
+                this.arrived = false;
             }
         }
 
@@ -69,12 +65,11 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
             const reached = this.seekTarget(target, delta);
             if (reached) {
                 this.headingToEnd = !this.headingToEnd;
-                // Immediately apply velocity for the return leg so there is no
-                // zero-velocity frame at the turnaround point (Body.reset() zeroes
-                // velocity, which otherwise lets the player free-fall for one frame).
+
                 const next = this.headingToEnd ? this.endPos : this.startPos;
                 const dx   = next.x - target.x;
                 const dy   = next.y - target.y;
+
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist > 0) {
                     this.Body.setVelocityX((dx / dist) * this.speed);
@@ -94,18 +89,11 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
     }
 
     private seekTarget(target: Vec2, delta: number): boolean {
-        // Use body centre (updated in PRE_UPDATE) rather than this.x/y (synced in
-        // POST_UPDATE — stale by one frame in scene.update(), causing slight overshoot).
         const bx   = this.Body.center.x;
         const by   = this.Body.center.y;
         const dx   = target.x - bx;
         const dy   = target.y - by;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        // Arrival threshold must cover at least one fixed physics tick of travel. The body
-        // moves ~speed/fps per physics step, but the render `delta` can be far smaller at
-        // high refresh rates — a threshold of speed*renderDelta would then be smaller than
-        // the actual per-tick step, so the body overshoots the target every tick and
-        // oscillates forever (velocity never zeroes, never "arrives"). Worse at high speed.
         const fps  = this.scene.physics.world.fps || 60;
         const dt   = Math.max(delta, 1000 / fps) / 1000;
         const step = this.speed * dt;
