@@ -8,6 +8,7 @@ import { MovingPlatform } from '../objects/movingPlatform';
 import { Switch } from '../objects/switches';
 import { PunchBox } from '../objects/punchBox';
 import { Box } from '../objects/box';
+import { Magnet, MagnetFacing } from '../objects/magnet';
 
 //#region CONSTANTS
 
@@ -48,8 +49,9 @@ export interface BuiltLevel {
         item: Phaser.GameObjects.Group, 
         switch: Phaser.GameObjects.Group, 
         box: Phaser.GameObjects.Group, 
-        punchBox: Phaser.GameObjects.Group, 
-        bullet: Phaser.GameObjects.Group
+        punchBox: Phaser.GameObjects.Group,
+        bullet: Phaser.GameObjects.Group,
+        magnet: Phaser.GameObjects.Group
     };
 }
 
@@ -64,8 +66,9 @@ export class LevelBuilder {
     private item!: Phaser.GameObjects.Group; 
     private switch!: Phaser.GameObjects.Group; 
     private box!: Phaser.GameObjects.Group;
-    private punchBox!: Phaser.GameObjects.Group; 
+    private punchBox!: Phaser.GameObjects.Group;
     private bullet!: Phaser.GameObjects.Group;
+    private magnet!: Phaser.GameObjects.Group;
 
     private objectById = new Map<number, Phaser.Types.Tilemaps.TiledObject>();
     private switchById =  new Map<number, Switch>();
@@ -87,6 +90,7 @@ export class LevelBuilder {
 
         this.spawnInteractableLayer();
         this.distributePlatforms();
+        this.attachRidersToPlatforms();
         this.spawnHazards();
         this.syncTriggerSpikes();
 
@@ -101,8 +105,9 @@ export class LevelBuilder {
                 item: this.item, 
                 switch: this.switch, 
                 box: this.box, 
-                punchBox: this.punchBox, 
-                bullet: this.bullet
+                punchBox: this.punchBox,
+                bullet: this.bullet,
+                magnet: this.magnet
             },
         };
     }
@@ -116,6 +121,7 @@ export class LevelBuilder {
         this.bullet = this.scene.add.group();
         this.punchBox = this.scene.add.group();
         this.box = this.scene.add.group();
+        this.magnet = this.scene.add.group();
     }
 
     private getObjectLayer(name: string): Phaser.Tilemaps.ObjectLayer | null {
@@ -232,7 +238,7 @@ export class LevelBuilder {
                     const mass     = this.tiled.getTiledProp<number>(obj, 'mass') ?? 1;
                     const swId     = this.tiled.getTiledProp<number>(obj, 'linkedSwitchId') || undefined;
                     const sw       = swId ? this.switchById.get(swId) : undefined;
-                    const box = new Box(this.scene, cx, cy, w, h, friction * 500, mass);
+                    const box = new Box(this.scene, cx, cy, w, h, friction * 500, mass, friction);
                     box.setAlpha(0);
                     box.tileSprite = sprite;
                     if (sw) box.linkSwitch(sw);
@@ -300,6 +306,9 @@ export class LevelBuilder {
                     break;
                 case 'turret':
                     this.spawnTurret(obj, cx, cy);
+                    break;
+                case 'magnet':
+                    this.spawnMagnet(obj, cx, cy);
                     break;
                 case 'punch_box': {
                     const forceX = prop<number>('forceX');
@@ -559,6 +568,33 @@ export class LevelBuilder {
                 });
             }
 
+            private spawnMagnet(obj: Phaser.Types.Tilemaps.TiledObject, cx: number, cy: number) {
+                const { w, h } = this.tiled.objectGeometry(obj);
+
+                // The flip/rotation flags baked into the tile in Tiled ARE the orientation data.
+                // Phaser strips them out of obj.gid and exposes them as booleans; the magnet faces
+                // (and pulls from) the direction its art points.
+                const H = !!obj.flippedHorizontal;
+                const V = !!obj.flippedVertical;
+                const D = !!obj.flippedAntiDiagonal;
+                const facing: MagnetFacing = D
+                    ? ((V && !H) || (H && V) ? 'up' : 'down')
+                    : (H ? 'left' : 'right');
+
+                const radius       = this.tiled.getTiledProp<number>(obj, 'radius') ?? 40;
+                const strength     = this.tiled.getTiledProp<number>(obj, 'strength') ?? 150;
+                const startEnabled = this.tiled.getTiledProp<boolean>(obj, 'startEnabled') ?? true;
+                const swId         = this.tiled.getTiledProp<number>(obj, 'linkedSwitchId') || undefined;
+                const sw           = swId ? this.switchById.get(swId) : undefined;
+
+                const magnet = new Magnet(this.scene, cx, cy, w, h, facing, radius, strength, startEnabled);
+                magnet.setAlpha(0);
+                if (obj.gid) magnet.tileSprite = this.tiled.addOrientedTileSprite(obj, cx, cy, 48);
+                if (sw) magnet.linkSwitch(sw);
+                magnet.setEnabled(startEnabled);
+                this.magnet.add(magnet);
+            }
+
     private distributePlatforms() {
         for (const [endTargetId, entries] of this.platformGroups) {
             if (entries.length <= 1) continue;
@@ -581,6 +617,38 @@ export class LevelBuilder {
                     platform.setEndPos(targetCenterX, target.y! + platform.height / 2 + i * platform.height);
                 });
             }
+        }
+    }
+
+    // Detect switches / boxes resting on top of a platform at spawn and attach them so they ride along.
+    // Switches have no physics body (they can only move via syncPosition), and horizontally moving
+    // platforms don't carry bodies through Arcade friction — so riders must be attached explicitly.
+    private attachRidersToPlatforms() {
+        const platforms = this.platform.getChildren() as MovingPlatform[];
+        if (platforms.length === 0) return;
+
+        // friction 1 = always sticks; MovingPlatform gates boxes below its threshold.
+        const riders: { obj: Switch | Box; friction: number }[] = [
+            ...this.switch.getChildren().map(s => ({ obj: s as Switch, friction: 1 })),
+            ...this.box.getChildren().map(b => ({ obj: b as Box, friction: (b as Box).friction })),
+        ];
+
+        for (const { obj, friction } of riders) {
+            const rLeft   = obj.x - obj.width / 2;
+            const rRight  = obj.x + obj.width / 2;
+            const rBottom = obj.y + obj.height / 2;
+
+            let best: MovingPlatform | null = null;
+            let bestOverlap = 0;
+            for (const p of platforms) {
+                const pTop = p.y - p.height / 2;
+                // Rider must be sitting on the platform's top edge (small tolerance).
+                if (Math.abs(rBottom - pTop) > 2) continue;
+                const overlap = Math.min(rRight, p.x + p.width / 2) - Math.max(rLeft, p.x - p.width / 2);
+                if (overlap > bestOverlap) { bestOverlap = overlap; best = p; }
+            }
+
+            if (best) best.attachObj(obj, obj.x - best.x, obj.y - best.y, friction);
         }
     }
 

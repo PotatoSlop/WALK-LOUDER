@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { getSetting, setSetting } from '../systems/settingsManager';
+import { GameState } from '../systems/gameState';
 
 export class SettingsScene extends Phaser.Scene {
     constructor() {
@@ -64,6 +65,11 @@ export class SettingsScene extends Phaser.Scene {
             this.game.events.emit('setting-changed', { key: 'deathCounterEnabled', value: v });
         }));
 
+        overlay.appendChild(this.makeCheckbox('SPEEDRUN TIMER', getSetting('timerCounterEnabled'), (v) => {
+            setSetting('timerCounterEnabled', v);
+            this.game.events.emit('setting-changed', { key: 'timerCounterEnabled', value: v });
+        }));
+
         // Buttons
         const recalibrateBtn = this.makeButton('RECALIBRATE');
         recalibrateBtn.addEventListener('click', () => {
@@ -80,8 +86,10 @@ export class SettingsScene extends Phaser.Scene {
 
         this.input.keyboard!.once('keydown-ESC', () => {
             overlay.remove();
-            this.scene.stop();
-            this.scene.resume('main');
+            // Return to play through the shared state — GameScene's applyMode()
+            // stops this scene and resumes gameplay + the run timer.
+            const gs = this.game.registry.get('gameState') as GameState | undefined;
+            gs?.set('playing');
         });
 
         this.events.on('shutdown', () => overlay?.remove());

@@ -13,9 +13,12 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
     private speed: number;
     private headingToEnd: boolean = true;
     private arrived: boolean = false;
-    private attached: { obj: { syncPosition(x: number, y: number): void }; offsetX: number; offsetY: number }[] = [];
+    private attached: { obj: { syncPosition(x: number, y: number): void }; offsetX: number; offsetY: number; friction: number }[] = [];
     private linkedSwitch: Switch | null = null;
     private switchInverted: boolean = false;
+
+    /** Riders with a friction below this slide instead of being carried (e.g. icy boxes). */
+    private static readonly STICK_FRICTION_THRESHOLD = 0.2;
 
     constructor(
         scene: Phaser.Scene,
@@ -31,6 +34,12 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         this.Body = this.body as Phaser.Physics.Arcade.Body;
         this.Body.setAllowGravity(false);
         this.Body.setImmovable(true);
+        // Arcade auto-carries any body resting on an immovable platform via Body.friction
+        // (default x=1). That ignores our per-rider friction rule, so disable it and own the
+        // carry ourselves: riders move only through the friction-gated syncPosition below, and
+        // the player is carried explicitly by PlayerController.
+        this.Body.friction.x = 0;
+        this.Body.friction.y = 0;
 
         this.startPos = { x, y };
         this.endPos = endPos ?? { x, y };
@@ -47,8 +56,9 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         this.switchInverted = inverted;
     }
 
-    attachObj(obj: { syncPosition(x: number, y: number): void }, offsetX: number, offsetY: number) {
-        this.attached.push({ obj, offsetX, offsetY });
+    // friction defaults to 1 so riders without a friction value (e.g. switches) always stick.
+    attachObj(obj: { syncPosition(x: number, y: number): void }, offsetX: number, offsetY: number, friction: number = 1) {
+        this.attached.push({ obj, offsetX, offsetY, friction });
     }
 
     update(delta: number) {
@@ -81,7 +91,9 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
             if (reached) this.arrived = true;
         }
 
-        this.attached.forEach(({ obj, offsetX, offsetY }) => {
+        this.attached.forEach(({ obj, offsetX, offsetY, friction }) => {
+            // Too slippery to stick — let the rider slide off instead of riding along.
+            if (friction < MovingPlatform.STICK_FRICTION_THRESHOLD) return;
             obj.syncPosition(this.x + offsetX, this.y + offsetY);
         });
 

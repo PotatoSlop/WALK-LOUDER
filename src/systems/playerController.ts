@@ -40,6 +40,9 @@ export class PlayerController {
                     player.Body.setVelocityX(this.getPlatformVelocityBeside('left'));
                 } else {
                     player.moveLeft(vol);
+                    // Platforms no longer auto-carry via Arcade friction, so add the carry
+                    // ourselves: walk relative to the platform underfoot (0 on static ground).
+                    player.Body.setVelocityX(player.Body.velocity.x + this.getPlatformVelocityBelow());
                 }
             } else if (rightDown && !leftDown) {
                 if (player.Body.blocked.right) {
@@ -47,6 +50,7 @@ export class PlayerController {
                     player.Body.setVelocityX(this.getPlatformVelocityBeside('right'));
                 } else {
                     player.moveRight(vol);
+                    player.Body.setVelocityX(player.Body.velocity.x + this.getPlatformVelocityBelow());
                 }
             } else {
                 // Neither key is pressed, OR both keys are pressed -> Dont move

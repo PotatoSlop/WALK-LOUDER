@@ -1,13 +1,16 @@
 import Phaser from 'phaser';
 import { getSetting } from '../systems/settingsManager';
+import { GameState, formatRunTime } from '../systems/gameState';
 
 export class UIScene extends Phaser.Scene {
     private levelText!:          Phaser.GameObjects.Text;
     private levelNameText!:      Phaser.GameObjects.Text;
     private deathCount!:         Phaser.GameObjects.Text;
+    private timerText!:          Phaser.GameObjects.Text;
     private skullIcon!:          Phaser.GameObjects.Image;
     private deathEmitter!:       Phaser.GameObjects.Particles.ParticleEmitter;
     private showDeathCounter:    boolean = true;
+    private showTimer:           boolean = false;
 
     constructor() {
         super({ key: 'ui' });
@@ -22,6 +25,7 @@ export class UIScene extends Phaser.Scene {
         this.buildDeathEmitter();
         this.registerEvents();
         this.buildDeathCountDisplay();
+        this.buildRunTimer();
 
         // Read current registry values immediately — covers the normal case where
         // GameScene.create() set them before launching this scene.
@@ -35,6 +39,7 @@ export class UIScene extends Phaser.Scene {
         if (deaths !== undefined) this.deathCount.setText(`${deaths}`);
 
         this.showDeathCounter = getSetting('deathCounterEnabled');
+        this.showTimer = getSetting('timerCounterEnabled');
 
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanup, this);
     }
@@ -74,6 +79,15 @@ export class UIScene extends Phaser.Scene {
     }
 
     update() {
+        // Run timer — rendered every frame, before the death-counter early-return below so
+        // it keeps ticking regardless of the death-counter's visibility.
+        const gs = this.game.registry.get('gameState') as GameState | undefined;
+        if (gs && this.showTimer) {
+            this.timerText.setText(formatRunTime(gs.elapsedMs())).setVisible(true);
+        } else {
+            this.timerText.setVisible(false);
+        }
+
         const gameScene = this.scene.get('main') as any;
         const player = gameScene?.player;
         if (!player?.active || !this.showDeathCounter) {
@@ -118,6 +132,21 @@ export class UIScene extends Phaser.Scene {
                 stroke:          '#000000',
                 strokeThickness: 2,
             })
+            .setVisible(false);
+    }
+
+    // run timer — top-center, stays centered in the vertical 9:16 clip frame
+
+    private buildRunTimer() {
+        this.timerText = this.add.text(this.scale.width / 2, 24, '', {
+                fontFamily:      '"Press Start 2P"',
+                fontSize:        '24px',
+                color:           '#c0c0c0',
+                stroke:          '#000000',
+                strokeThickness: 2,
+                padding:         { top: 12 },
+            })
+            .setOrigin(0.5, 0)
             .setVisible(false);
     }
 
@@ -167,6 +196,7 @@ export class UIScene extends Phaser.Scene {
 
         this.game.events.on('setting-changed', ({ key, value }: { key: string; value: any }) => {
             if (key === 'deathCounterEnabled') this.showDeathCounter = value;
+            if (key === 'timerCounterEnabled') this.showTimer = value;
         }, this);
     }
 

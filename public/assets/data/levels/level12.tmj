@@ -355,7 +355,7 @@
                         {
                          "name":"targetLevel",
                          "type":"string",
-                         "value":"13"
+                         "value":"level13"
                         }],
                  "rotation":0,
                  "type":"",
@@ -374,7 +374,7 @@
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":128,
+                 "x":136,
                  "y":64
                 }, 
                 {

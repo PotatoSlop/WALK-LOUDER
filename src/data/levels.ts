@@ -14,6 +14,7 @@ export const LEVEL_NAMES: Record<string, string> = {
     level13: 'Riot Control',
     level14: 'Super (Loud) Bowl',
     level15: 'Leap of faith',
-    level16: 'A-maze-ing',
+    level16: 'Too Nice to Not go Twice',
+    level17: 'Redirection'
 };
  

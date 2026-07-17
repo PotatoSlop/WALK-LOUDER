@@ -8,6 +8,7 @@ import { MovingPlatform } from '../objects/movingPlatform';
 import { Switch } from '../objects/switches';
 import { PunchBox } from '../objects/punchBox';
 import { Box } from '../objects/box';
+import { Magnet } from '../objects/magnet';
 import { bodyOverlapsSensor } from '../systems/overlap';
 import { getSetting } from '../systems/settingsManager';
 import { LEVEL_NAMES } from '../data/levels';
@@ -15,6 +16,7 @@ import { TiledContext } from '../systems/tiled';
 import { LevelBuilder } from '../systems/levelBuilder';
 import { setupCameraFX } from '../systems/cameraFX';
 import { PlayerController } from '../systems/playerController';
+import { GameState, GAMEMODE_CHANGED, GameMode } from '../systems/gameState';
 
 // Door unlock visual frames — swapped when a locked door opens
 const DOOR_UNLOCKED_GID = 376;      // door body without handle (unlocked visual)
@@ -35,6 +37,8 @@ export class GameScene extends Phaser.Scene {
     bulletGroup: any;
     punchBoxGroup: any;
     boxGroup: any;
+    magnetGroup: any;
+    platformLayer: any;
     mic: any;
     escKey: any;
 
@@ -42,6 +46,7 @@ export class GameScene extends Phaser.Scene {
     private moveLabel!: Phaser.GameObjects.Text;
 
     private deathCt: number = 0;
+    private gameState!: GameState;
 
     private currentLevelId: string = 'level01';
     private transitioning: boolean = false;
@@ -53,9 +58,16 @@ export class GameScene extends Phaser.Scene {
     }
 
     init(data: { levelId?: string }) {
-        this.currentLevelId = data.levelId ?? 'level01';
+        this.currentLevelId = data.levelId ?? 'level03';
         this.transitioning = false;
         this.deathCt = this.game.registry.get('deathCt') ?? 0;
+
+        // Single GameState shared across scene restarts (death/respawn) — persist it in the
+        // registry and reuse. Uses the global game emitter so mode-change listeners survive
+        // restarts. startRun is idempotent, so the clock keeps ticking through respawns.
+        this.gameState = this.game.registry.get('gameState') as GameState
+            ?? new GameState(this.game.events);
+        this.game.registry.set('gameState', this.gameState);
     }
 
     preload() {
@@ -73,6 +85,7 @@ export class GameScene extends Phaser.Scene {
         const map = this.make.tilemap({ key: this.currentLevelId });
         const tileset = map.addTilesetImage('walk-louder-tile-sheet', 'tiles');
         const platformLayer = map.createLayer('Tile Layer 1', tileset!);
+        this.platformLayer = platformLayer!;
 
         // Lock world + camera to tilemap dimensions (screen edge = level edge)
         this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
@@ -118,6 +131,7 @@ export class GameScene extends Phaser.Scene {
         this.boxGroup      = level.groups.box;
         this.punchBoxGroup = level.groups.punchBox;
         this.bulletGroup   = level.groups.bullet;
+        this.magnetGroup   = level.groups.magnet;
 
         this.playerController = new PlayerController(this, this.player, this.platformGroup);
 
@@ -140,6 +154,10 @@ export class GameScene extends Phaser.Scene {
         for (const h of this.hazardGroup.getChildren()) {
             this.physics.add.overlap(this.player, h, (p) => (p as Player).death());
         }
+
+        // The magnet kills on contact with its own tile — a plain overlap (disabled magnets have
+        // their body turned off, so this won't fire while unpowered).
+        this.physics.add.overlap(this.player, this.magnetGroup, (p) => (p as Player).death());
 
         // Keys are collected via a plain AABB test in update() (see itemGroup loop) — no
         // physics overlap, which would corrupt the player's ground/jump state on contact.
@@ -197,7 +215,40 @@ export class GameScene extends Phaser.Scene {
         if (this.scene.isActive('ui')) this.scene.stop('ui');
         this.scene.launch('ui');
 
-        this.scene.resume();
+        // Run timing + mode side effects. startRun/split are idempotent, so a death-respawn
+        // restart resumes cleanly; split dedupes so only genuine level changes are recorded.
+        this.gameState.startRun(this.currentLevelId);
+        this.gameState.split(this.currentLevelId);
+
+        // React to mode changes in one place. Listener lives on the global emitter (fires even
+        // while this scene is paused), so remove it on shutdown to avoid stale-scene callbacks.
+        this.game.events.on(GAMEMODE_CHANGED, this.applyMode, this);
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+            this.game.events.off(GAMEMODE_CHANGED, this.applyMode, this);
+        });
+
+        // Entering (or restarting into) gameplay is always the 'playing' mode.
+        this.gameState.set('playing');
+        this.applyMode('playing');
+    }
+
+    // The single place where a GameMode change turns into scene side effects.
+    private applyMode(mode: GameMode) {
+        switch (mode) {
+            case 'playing':
+                if (this.scene.isActive('settings')) this.scene.stop('settings');
+                this.scene.resume();
+                break;
+            case 'paused':
+            case 'settings':
+                this.scene.pause();
+                if (!this.scene.isActive('settings')) this.scene.launch('settings');
+                break;
+            case 'results':
+                // No results screen yet — freeze gameplay; the run clock stops on its own.
+                this.scene.pause();
+                break;
+        }
     }
 
     private buildControlsHint() {
@@ -226,23 +277,18 @@ export class GameScene extends Phaser.Scene {
         this.scene.restart({ levelId });
     }
 
-    // Game loop 
+    // Game loop
     update(_time: number, delta: number) {
         const vol = this.debugKey.isDown ? 0.8 : (this.mic?.smoothedVolume() ?? 0);
         // Jump uses instantaneous normalized volume — EMA-smoothed vol lags too much
         // to capture a shout at the moment of jump (frame 1 smoothed ≈ 30% of actual peak).
         const jumpVol = this.debugKey.isDown ? 0.8 : (this.mic?.getNormalizedVolume() ?? vol);
 
-        // Pause Toggle
+        // Pause toggle — flip the mode; applyMode() does the scene work. (Resuming from the
+        // settings overlay is driven by SettingsScene's own ESC handler, since this update
+        // loop is paused while settings is open.)
         if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
-            if (this.scene.isPaused()) {
-                this.scene.resume();
-                this.scene.stop('settings');
-            }
-            else {
-                this.scene.pause();
-                this.scene.launch('settings');
-            }
+            this.gameState.set(this.gameState.isPlaying() ? 'settings' : 'playing');
         }
 
         this.playerController.update({ vol, jumpVol, cursors: this.cursors, delta });
@@ -273,5 +319,33 @@ export class GameScene extends Phaser.Scene {
         this.punchBoxGroup.getChildren().forEach((go: Phaser.GameObjects.GameObject) => {
             (go as PunchBox).update(this.player);
         });
+
+        // Magnets last — they override the pull-axis velocity for this frame (which the player
+        // controller and box physics have already set), so the pull wins before the physics step.
+        this.updateMagnets();
     }
+
+    private updateMagnets() {
+        if (this.magnetGroup.getLength() === 0) return;
+
+        const bodies: Phaser.Physics.Arcade.Body[] = [this.player.Body];
+        for (const b of this.boxGroup.getChildren()) {
+            if (b.active) bodies.push((b as Box).Body);
+        }
+
+        // A field tile is blocked by a solid map tile or any moving platform occupying it.
+        const blockedAt = (wx: number, wy: number): boolean => {
+            const tile = this.platformLayer.getTileAtWorldXY(wx, wy);
+            if (tile && tile.collides) return true;
+            for (const p of this.platformGroup.getChildren()) {
+                const pb = (p as MovingPlatform).Body;
+                if (wx >= pb.left && wx <= pb.right && wy >= pb.top && wy <= pb.bottom) return true;
+            }
+            return false;
+        };
+
+        this.magnetGroup.getChildren().forEach((m: Phaser.GameObjects.GameObject) =>
+            (m as Magnet).update(bodies, blockedAt));
+    }
+
 }

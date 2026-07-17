@@ -7,6 +7,7 @@ export interface GameSettings {
     particlesEnabled: boolean;
     bloodMode: boolean;
     deathCounterEnabled: boolean;
+    timerCounterEnabled: boolean;
 }
 
 const DEFAULTS: GameSettings = {
@@ -16,6 +17,7 @@ const DEFAULTS: GameSettings = {
     particlesEnabled: true,
     bloodMode: false,
     deathCounterEnabled: true,
+    timerCounterEnabled: false
 };
 
 export function loadSettings(): GameSettings {
