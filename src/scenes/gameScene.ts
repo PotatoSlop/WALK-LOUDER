@@ -151,6 +151,26 @@ export class GameScene extends Phaser.Scene {
         this.physics.add.collider(this.boxGroup, this.boxGroup);
         platformLayer!.setCollision([42]);
 
+        const platforms = this.platformGroup.getChildren() as MovingPlatform[];
+        for (const p of platforms) {
+            for (const other of platforms) {
+                if (p === other) continue;
+                
+                const pBody = p.Body;
+                const oBody = other.Body;
+                
+                // If 'other' is sitting directly above 'p'
+                if (Math.abs(oBody.bottom - pBody.top) <= 2 && 
+                    oBody.right > pBody.left + 2 && 
+                    oBody.left < pBody.right - 2) {
+                    
+                    // Disable inner edges of vertical platform blocks -> removes collison bugs with multi-tile platforms
+                    pBody.checkCollision.up = false; 
+                    oBody.checkCollision.down = false; 
+                }
+            }
+        }
+
         for (const h of this.hazardGroup.getChildren()) {
             this.physics.add.overlap(this.player, h, (p) => (p as Player).death());
         }

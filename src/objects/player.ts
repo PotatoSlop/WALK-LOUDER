@@ -75,14 +75,14 @@ export class Player extends Phaser.GameObjects.Sprite {
 
     moveLeft(volume: number) {
         this.facing = 'left';
-        const speed = this.BASE_MOVEMENT_SPEED + (volume * this.MAX_SPEED_MULT * this.BASE_MOVEMENT_SPEED)
-        this.Body.setVelocityX(-speed);
+        const speed = this.BASE_MOVEMENT_SPEED + (volume * this.MAX_SPEED_MULT * this.BASE_MOVEMENT_SPEED);
+        this.Body.setVelocityX(-speed); // Reverted back to the original math
     }
 
     moveRight(volume: number) {
         this.facing = 'right';
         const speed = this.BASE_MOVEMENT_SPEED + (volume * this.MAX_SPEED_MULT * this.BASE_MOVEMENT_SPEED);
-        this.Body.setVelocityX(speed);
+        this.Body.setVelocityX(speed); // Reverted back to the original math
     }
 
     jump(volume: number) {

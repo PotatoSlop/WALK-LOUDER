@@ -34,12 +34,8 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         this.Body = this.body as Phaser.Physics.Arcade.Body;
         this.Body.setAllowGravity(false);
         this.Body.setImmovable(true);
-        // Arcade auto-carries any body resting on an immovable platform via Body.friction
-        // (default x=1). That ignores our per-rider friction rule, so disable it and own the
-        // carry ourselves: riders move only through the friction-gated syncPosition below, and
-        // the player is carried explicitly by PlayerController.
-        this.Body.friction.x = 0;
-        this.Body.friction.y = 0;
+        this.Body.friction.x = 1;
+        this.Body.friction.y = 1;
 
         this.startPos = { x, y };
         this.endPos = endPos ?? { x, y };

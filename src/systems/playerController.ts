@@ -30,34 +30,25 @@ export class PlayerController {
 
         if (!inKnockback) {
             if (leftDown && !rightDown) {
+                player.facing = 'left';
+                // Removed the 'touching' check so overlap sensors (doors) are ignored
                 if (player.Body.blocked.left) {
-                    // Already blocked (wall or platform) — match the blocker's X velocity
-                    // instead of ramming full speed into it. Ramming builds up penetration
-                    // that Arcade can resolve on the wrong (Y) axis, sticking the player to
-                    // the side. A static wall / vertical platform returns 0, so gravity can
-                    // still pull the player down the face.
-                    player.facing = 'left';
-                    player.Body.setVelocityX(this.getPlatformVelocityBeside('left'));
+                    player.Body.setVelocityX(this.getPlatformVelocityBeside('left') - 1);
                 } else {
                     player.moveLeft(vol);
-                    // Platforms no longer auto-carry via Arcade friction, so add the carry
-                    // ourselves: walk relative to the platform underfoot (0 on static ground).
-                    player.Body.setVelocityX(player.Body.velocity.x + this.getPlatformVelocityBelow());
                 }
             } else if (rightDown && !leftDown) {
+                player.facing = 'right';
+                // Removed the 'touching' check so overlap sensors (doors) are ignored
                 if (player.Body.blocked.right) {
-                    player.facing = 'right';
-                    player.Body.setVelocityX(this.getPlatformVelocityBeside('right'));
+                    player.Body.setVelocityX(this.getPlatformVelocityBeside('right') + 1);
                 } else {
                     player.moveRight(vol);
-                    player.Body.setVelocityX(player.Body.velocity.x + this.getPlatformVelocityBelow());
                 }
             } else {
-                // Neither key is pressed, OR both keys are pressed -> Dont move
+                // Neither key is pressed -> Use your exact original deceleration math
                 if (player.grounded) {
-                    const platVx = this.getPlatformVelocityBelow();
-                    const relVx  = player.Body.velocity.x - platVx;
-                    player.Body.setVelocityX(platVx + relVx * 0.82);
+                    player.Body.setVelocityX(player.Body.velocity.x * 0.82);
                 } else {
                     player.setSpeedMultiplier(0.97);
                 }
@@ -89,8 +80,7 @@ export class PlayerController {
         const vy = player.Body.velocity.y;
         const vx = Math.abs(player.Body.velocity.x);
         const justJumped = performance.now() - player.jumpTime < 100;
-        const isMovingIntent = (leftDown && !rightDown && !player.Body.blocked.left) ||
-                            (rightDown && !leftDown && !player.Body.blocked.right);
+        const isMovingIntent = (leftDown && !rightDown) || (rightDown && !leftDown);
 
         if (!isGrounded || justJumped) {
             player.anims.timeScale = 1;
@@ -126,19 +116,14 @@ export class PlayerController {
         return 0;
     }
 
-    // Returns the X velocity of a moving platform the player is side-touching on `side`
-    // (i.e. vertically overlapping and edge-aligned), or 0 if it's a static wall / vertical
-    // platform / nothing. Used by the blocked-input gate so the player rides a horizontally
-    // moving platform pressed against them instead of ramming into it.
     private getPlatformVelocityBeside(side: 'left' | 'right'): number {
         const pb = this.player.Body;
         for (const p of this.platformGroup.getChildren()) {
             const platBody = (p as MovingPlatform).Body;
-            // Skip if there is no vertical overlap (platform is above or below)
             if (pb.bottom <= platBody.top || pb.top >= platBody.bottom) continue;
             if (side === 'left'  && Math.abs(platBody.right - pb.left)  <= 2) return platBody.velocity.x;
             if (side === 'right' && Math.abs(platBody.left  - pb.right) <= 2) return platBody.velocity.x;
         }
-        return 0;
+        return 0; // Automatically returns 0 for static walls/tiles
     }
 }
