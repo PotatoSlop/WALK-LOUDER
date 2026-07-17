@@ -8,6 +8,7 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
     isStatic: boolean;
     mode: 'auto' | 'driven';
     powered: boolean = false;
+    isSaw: boolean = false;
     tileSprite: Phaser.GameObjects.Image | Phaser.GameObjects.Container | null = null;
 
     direction: 'left' | 'right' | null = null;
@@ -69,6 +70,7 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
     shoot() {
         if (this.direction == null || !this.active) return;
 
+        this.scene.game.events.emit('sfx-gun-fire');
         const bullet = new Hazard(this.scene, this.x, this.y + this.BULLET_OFFSET, 2, 2, false);
         bullet.Body.setVelocity(this.direction  == "left" ? -this.BULLET_SPEED : this.BULLET_SPEED, 0);
         bullet.Body.setAllowGravity(false);

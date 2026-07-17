@@ -17,6 +17,7 @@ import { LevelBuilder } from '../systems/levelBuilder';
 import { setupCameraFX } from '../systems/cameraFX';
 import { PlayerController } from '../systems/playerController';
 import { GameState, GAMEMODE_CHANGED, GameMode } from '../systems/gameState';
+import { SoundManager } from '../systems/soundFX';
 
 // Door unlock visual frames — swapped when a locked door opens
 const DOOR_UNLOCKED_GID = 376;      // door body without handle (unlocked visual)
@@ -53,6 +54,11 @@ export class GameScene extends Phaser.Scene {
     private debugKey!: Phaser.Input.Keyboard.Key;
     private playerController!: PlayerController;
 
+    // Previous frame's sustained-sound state — sounds are toggled only on transitions.
+    private platformMoving: boolean = false;
+    private magnetPulling: boolean = false;
+    private sawTravelling: boolean = false;
+
     constructor() {
         super({ key: 'main' });
     }
@@ -76,10 +82,22 @@ export class GameScene extends Phaser.Scene {
         this.load.image('controls-callout', 'assets/Control_callout.png');
         this.load.spritesheet('tileSprites', 'assets/walk-louder-tile-sheet.png', { frameWidth: 8, frameHeight: 8 });
         this.load.spritesheet('player', 'assets/walkter-Sheet.png', { frameWidth: 8, frameHeight: 16 });
+        SoundManager.preload(this);
     }
 
     create() {
         this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+
+        // Sound is wired through the persistent global event emitter, so build the manager
+        // once and reuse it across scene restarts (respawns / level changes).
+        if (!this.game.registry.get('soundManager')) {
+            this.game.registry.set('soundManager', new SoundManager(this));
+        }
+        // Sustained-sound state is per-run — reset so the first move/pull after a
+        // restart re-triggers its loop (the scene instance is reused across restarts).
+        this.platformMoving = false;
+        this.magnetPulling = false;
+        this.sawTravelling = false;
 
         // Tilemap
         const map = this.make.tilemap({ key: this.currentLevelId });
@@ -113,7 +131,7 @@ export class GameScene extends Phaser.Scene {
             this.player.Body.setVelocity(0, 0);
             (this.player.Body as Phaser.Physics.Arcade.Body).setEnable(false);
 
-            this.game.events.emit('player-death-fx', { x: this.player.x, y: this.player.y, color });
+            this.game.events.emit('player-death-fx', { x: this.player.x, y: this.player.y, color, cause: this.player.deathCause });
 
             this.time.delayedCall(500, () => this.switchLevel(this.currentLevelId));
         });
@@ -195,20 +213,27 @@ export class GameScene extends Phaser.Scene {
                         doorObj.tileSprite?.setFrame(DOOR_UNLOCKED_GID - 1);
                         doorObj.topSprite?.setFrame(DOOR_UNLOCKED_TOP_GID - 1);
                         this.transitioning = true;
+                        this.game.events.emit('sfx-door-win');
                         this.time.delayedCall(500, () => this.switchLevel(doorObj.targetLevel));
                     }
                     return;
                 }
                 this.transitioning = true;
+                this.game.events.emit('sfx-door-win');
                 this.switchLevel(doorObj.targetLevel);
                 this.game.events.emit('level-changed', doorObj.targetLevel.slice(-2));
             });
         }
 
-        this.physics.add.collider(this.bulletGroup, platformLayer! || this.player, bullet => bullet.destroy());
-        this.physics.add.collider(this.bulletGroup, this.platformGroup, bullet => bullet.destroy());
-        this.physics.add.overlap(this.bulletGroup, this.boxGroup, bullet => bullet.destroy());
-        this.physics.add.overlap(this.player, this.bulletGroup, p => (p as Player).death());
+        // Bullets destroyed against geometry (not the player) play the wall-hit sound.
+        const killBullet = (bullet: any) => {
+            this.game.events.emit('sfx-bullet-hit-wall');
+            bullet.destroy();
+        };
+        this.physics.add.collider(this.bulletGroup, platformLayer! || this.player, killBullet);
+        this.physics.add.collider(this.bulletGroup, this.platformGroup, killBullet);
+        this.physics.add.overlap(this.bulletGroup, this.boxGroup, killBullet);
+        this.physics.add.overlap(this.player, this.bulletGroup, p => (p as Player).death('bullet'));
 
         this.cursors = this.input.keyboard!.createCursorKeys();
         this.debugKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
@@ -245,6 +270,8 @@ export class GameScene extends Phaser.Scene {
         this.game.events.on(GAMEMODE_CHANGED, this.applyMode, this);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             this.game.events.off(GAMEMODE_CHANGED, this.applyMode, this);
+            // Kill any sustained loops so they don't bleed across the level teardown.
+            this.game.events.emit('sfx-stop-loops');
         });
 
         // Entering (or restarting into) gameplay is always the 'playing' mode.
@@ -300,25 +327,21 @@ export class GameScene extends Phaser.Scene {
     // Game loop
     update(_time: number, delta: number) {
         const vol = this.debugKey.isDown ? 0.8 : (this.mic?.smoothedVolume() ?? 0);
-        // Jump uses instantaneous normalized volume — EMA-smoothed vol lags too much
-        // to capture a shout at the moment of jump (frame 1 smoothed ≈ 30% of actual peak).
         const jumpVol = this.debugKey.isDown ? 0.8 : (this.mic?.getNormalizedVolume() ?? vol);
 
-        // Pause toggle — flip the mode; applyMode() does the scene work. (Resuming from the
-        // settings overlay is driven by SettingsScene's own ESC handler, since this update
-        // loop is paused while settings is open.)
         if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
+            this.game.events.emit('sfx-pause');
             this.gameState.set(this.gameState.isPlaying() ? 'settings' : 'playing');
         }
 
         this.playerController.update({ vol, jumpVol, cursors: this.cursors, delta });
 
-        // Keys: AABB pickup (no physics body — see Key). Copy the list since we destroy while iterating.
         for (const item of [...this.itemGroup.getChildren()]) {
             const key = item as Key;
             if (!key.active) continue;
             if (bodyOverlapsSensor(this.player.Body, key)) {
                 this.player.items.push(key.keyType);
+                this.game.events.emit('item-collect');
                 key.tileSprite?.destroy();
                 key.destroy();
             }
@@ -340,9 +363,39 @@ export class GameScene extends Phaser.Scene {
             (go as PunchBox).update(this.player);
         });
 
-        // Magnets last — they override the pull-axis velocity for this frame (which the player
-        // controller and box physics have already set), so the pull wins before the physics step.
         this.updateMagnets();
+        this.updateLoopSounds();
+    }
+
+    // Toggle the sustained platform/magnet sounds on state transitions only.
+    private updateLoopSounds() {
+        const anyPlatformMoving = this.platformGroup.getChildren().some(
+            (p: Phaser.GameObjects.GameObject) => {
+                const b = (p as MovingPlatform).Body;
+                return Math.abs(b.velocity.x) > 0.5 || Math.abs(b.velocity.y) > 0.5;
+            });
+        if (anyPlatformMoving !== this.platformMoving) {
+            this.platformMoving = anyPlatformMoving;
+            this.game.events.emit('sfx-platform-move', { moving: anyPlatformMoving });
+        }
+
+        const anyMagnetPulling = this.magnetGroup.getChildren().some(
+            (m: Phaser.GameObjects.GameObject) => (m as Magnet).pulledThisFrame);
+        if (anyMagnetPulling !== this.magnetPulling) {
+            this.magnetPulling = anyMagnetPulling;
+            this.game.events.emit('sfx-magnet', { active: anyMagnetPulling });
+        }
+
+        const anySawTravelling = this.hazardGroup.getChildren().some(
+            (h: Phaser.GameObjects.GameObject) => {
+                const hz = h as Hazard;
+                return hz.isSaw && hz.active && !hz.isStatic &&
+                    (Math.abs(hz.Body.velocity.x) > 0.5 || Math.abs(hz.Body.velocity.y) > 0.5);
+            });
+        if (anySawTravelling !== this.sawTravelling) {
+            this.sawTravelling = anySawTravelling;
+            this.game.events.emit('sfx-saw', { moving: anySawTravelling });
+        }
     }
 
     private updateMagnets() {

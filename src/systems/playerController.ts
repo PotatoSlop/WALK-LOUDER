@@ -15,6 +15,9 @@ export class PlayerController {
     private player: Player;
     private platformGroup: Phaser.GameObjects.Group;
 
+    // Last walk animation frame we emitted a footstep for — tracks step transitions.
+    private lastFootFrame: number = -1;
+
     constructor(scene: Phaser.Scene, player: Player, platformGroup: Phaser.GameObjects.Group) {
         this.scene = scene;
         this.player = player;
@@ -64,8 +67,11 @@ export class PlayerController {
         }
 
         if (performance.now() - player.lastJumpInputTime <= player.JumpBufferTime) {
-            player.jump(jumpVol);
+            if (player.jump(jumpVol)) this.scene.game.events.emit('sfx-jump-start');
         }
+
+        // Variable jump sound: sustains only while the jump key is held down.
+        if (cursors.up.isUp) this.scene.game.events.emit('sfx-jump-stop');
 
         player.applyVocalBoost(jumpVol);
 
@@ -83,6 +89,7 @@ export class PlayerController {
         const isMovingIntent = (leftDown && !rightDown) || (rightDown && !leftDown);
 
         if (!isGrounded || justJumped) {
+            this.lastFootFrame = -1;
             player.anims.timeScale = 1;
             if (vy < 0 || justJumped) {
                 player.play('player_jump', true);
@@ -93,7 +100,16 @@ export class PlayerController {
             // Use intent to smooth over the 1-frame velocity drop
             player.play('player_walk', true);
             player.anims.timeScale = (10 + vol * 18) / 10;
+
+            // One footstep per contact frame of the 6-frame walk cycle. Emit on the
+            // transition onto a footfall frame so each step fires exactly once.
+            const frame = player.anims.currentFrame?.index ?? 0;
+            if ((frame === 1 || frame === 4) && frame !== this.lastFootFrame) {
+                this.scene.game.events.emit('sfx-walk');
+            }
+            this.lastFootFrame = frame;
         } else {
+            this.lastFootFrame = -1;
             player.stop();
             player.setFrame(0);
         }

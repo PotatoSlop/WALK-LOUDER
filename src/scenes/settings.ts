@@ -73,6 +73,7 @@ export class SettingsScene extends Phaser.Scene {
         // Buttons
         const recalibrateBtn = this.makeButton('RECALIBRATE');
         recalibrateBtn.addEventListener('click', () => {
+            this.game.events.emit('sfx-select');
             overlay.remove();
             this.scene.stop();
             this.scene.launch('calibration');
@@ -85,6 +86,7 @@ export class SettingsScene extends Phaser.Scene {
         parent.appendChild(overlay);
 
         this.input.keyboard!.once('keydown-ESC', () => {
+            this.game.events.emit('sfx-pause');
             overlay.remove();
             // Return to play through the shared state — GameScene's applyMode()
             // stops this scene and resumes gameplay + the run timer.
@@ -130,6 +132,8 @@ export class SettingsScene extends Phaser.Scene {
         });
 
         input.addEventListener('input', () => onChange(Number(input.value)));
+        // Play the settings-interaction blip once per adjustment (on release), not per pixel.
+        input.addEventListener('change', () => this.game.events.emit('sfx-switch'));
 
         wrapper.appendChild(labelEl);
         wrapper.appendChild(input);
@@ -164,7 +168,10 @@ export class SettingsScene extends Phaser.Scene {
             color: '#ffffff',
         });
 
-        box.addEventListener('change', () => onChange(box.checked));
+        box.addEventListener('change', () => {
+            this.game.events.emit('sfx-switch');
+            onChange(box.checked);
+        });
         wrapper.appendChild(box);
         wrapper.appendChild(labelEl);
         return wrapper;

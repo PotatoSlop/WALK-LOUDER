@@ -84,9 +84,12 @@ export class CalibrationScene extends Phaser.Scene {
         this.instructionEl.textContent = 'Stay quiet...\nCalibrating noise floor';
         await this.mic.calibrateNoise();
 
+        // Switching from the quiet (noise-floor) phase to the loud (peak) phase.
+        this.game.events.emit('sfx-switch');
         this.instructionEl.textContent = 'Make some noise!\nCalibrating peak volume';
         await this.mic.calibratePeak();
 
+        this.game.events.emit('success');
         this.instructionEl.textContent = 'Calibration complete!';
         this.countdownEl.textContent = '';
 

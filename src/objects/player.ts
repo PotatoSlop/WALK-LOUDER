@@ -85,15 +85,18 @@ export class Player extends Phaser.GameObjects.Sprite {
         this.Body.setVelocityX(speed); // Reverted back to the original math
     }
 
-    jump(volume: number) {
+    // Returns true only on the frame a valid jump actually launches, so callers can
+    // trigger the (variable) jump sound exactly once per jump.
+    jump(volume: number): boolean {
         const boostActive = performance.now() - this.jumpTime < this.jumpBoostWindow;
-        if (!this.grounded && performance.now() - this.lastGroundedTime > this.CoyoteTime) return;
-        if (boostActive) return;
+        if (!this.grounded && performance.now() - this.lastGroundedTime > this.CoyoteTime) return false;
+        if (boostActive) return false;
         this.lastGroundedTime = 0;
         this.lastJumpInputTime = 0;
         this.Body.setVelocityY(this.BASE_JUMP - volume * this.VOCAL_BOOST);
         this.jumpTime = performance.now();
         this.peakVolume = 0;
+        return true;
     }
 
     applyVocalBoost(volume: number) {
@@ -121,7 +124,11 @@ export class Player extends Phaser.GameObjects.Sprite {
         this.knockbackUntil = performance.now() + durationMs;
     }
 
-    death() {
+    // Set by death() so the scene's death handler can pick the right sfx (bullet vs. other).
+    deathCause: string = 'default';
+
+    death(cause: string = 'default') {
+        this.deathCause = cause;
         this.scene.events.emit('playerDeath');
     }
 

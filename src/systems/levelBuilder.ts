@@ -377,10 +377,14 @@ export class LevelBuilder {
         
                 const seq = makeTriggerSpikeSequence(offTime, onTime, extendTime);
                 let step = 0;
+                let prevDangerous = false;
                 const tick = () => {
                     const [frameIdx, dwell, dangerous] = seq[step];
                     tiles.forEach(t => t.setFrame(TRIGGER_SPIKE_FRAMES[frameIdx] - 1));
                     (hazard.body as any).enable = dangerous;
+                    // Play the extension sound the moment the spike becomes dangerous.
+                    if (dangerous && !prevDangerous) this.scene.game.events.emit('sfx-trigger-spike');
+                    prevDangerous = dangerous;
                     step = (step + 1) % seq.length;
                     this.scene.time.delayedCall(dwell, tick);
                 };
@@ -482,6 +486,7 @@ export class LevelBuilder {
                 // Hitbox is only the 8×8 center tile — visual is decorative
                 const saw = new Hazard( this.scene, cx, cy, 8, 8, !moves, moves ? { x: endX, y: endY } : undefined, moves ? speed : undefined, 'auto');
                 saw.setAlpha(0);
+                saw.isSaw = true;
                 saw.tileSprite = container;
         
                 if (linkedSwitchId !== undefined) {

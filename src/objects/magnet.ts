@@ -15,6 +15,10 @@ export class Magnet extends Phaser.GameObjects.Rectangle {
     enabled: boolean;
     tileSprite: Phaser.GameObjects.Image | null = null;
 
+    // True on any frame this magnet actually pulled at least one body — read by the
+    // scene to drive the sustained magnet sound.
+    pulledThisFrame: boolean = false;
+
     private linkedSwitch: Switch | null = null;
     private switchInverted: boolean = false;
 
@@ -143,6 +147,7 @@ export class Magnet extends Phaser.GameObjects.Rectangle {
     }
 
     update(bodies: Phaser.Physics.Arcade.Body[], blockedAt: (worldX: number, worldY: number) => boolean) {
+        this.pulledThisFrame = false;
         if (this.linkedSwitch) {
             const on = this.linkedSwitch.powered !== this.switchInverted;
             if (on !== this.enabled) this.setEnabled(on);
@@ -165,11 +170,13 @@ export class Magnet extends Phaser.GameObjects.Rectangle {
                 const rel = (body.center.x - this.x) * out;   // distance out in front of the magnet
                 if (rel <= 0 || rel > fieldLen) continue;
                 body.velocity.x = -out * this.pullSpeed(rel, fieldLen);
+                this.pulledThisFrame = true;
             } else {
                 if (body.right <= this.x - T / 2 || body.left >= this.x + T / 2) continue;
                 const rel = (body.center.y - this.y) * out;
                 if (rel <= 0 || rel > fieldLen) continue;
                 body.velocity.y = -out * this.pullSpeed(rel, fieldLen);
+                this.pulledThisFrame = true;
             }
         }
     }

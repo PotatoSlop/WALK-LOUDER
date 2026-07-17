@@ -82,11 +82,12 @@ export class UIScene extends Phaser.Scene {
         // Run timer — rendered every frame, before the death-counter early-return below so
         // it keeps ticking regardless of the death-counter's visibility.
         const gs = this.game.registry.get('gameState') as GameState | undefined;
-        if (gs && this.showTimer) {
-            this.timerText.setText(formatRunTime(gs.elapsedMs())).setVisible(true);
-        } else {
-            this.timerText.setVisible(false);
+        
+        if (gs) {
+            this.timerText.setText(formatRunTime(gs.elapsedMs()));
         }
+
+        this.timerText.setVisible(this.showTimer);
 
         const gameScene = this.scene.get('main') as any;
         const player = gameScene?.player;

@@ -94,6 +94,7 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
 
     punch() {
         if (this.isPunching || !this.enabled) return;
+        this.scene.game.events.emit('sfx-punch');
         this.isPunching = true;
         this.punchApplied = false;
         // Fist extends one tile past its start; the arm fills the fist's start cell behind it.
