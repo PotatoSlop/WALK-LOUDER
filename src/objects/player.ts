@@ -96,6 +96,7 @@ export class Player extends Phaser.GameObjects.Sprite {
         this.Body.setVelocityY(this.BASE_JUMP - volume * this.VOCAL_BOOST);
         this.jumpTime = performance.now();
         this.peakVolume = 0;
+        this.scene.game.events.emit('sfx-jump-start');
         return true;
     }
 
@@ -128,8 +129,7 @@ export class Player extends Phaser.GameObjects.Sprite {
     deathCause: string = 'default';
 
     death(cause: string = 'default') {
-        this.deathCause = cause;
-        this.scene.events.emit('playerDeath');
+        this.scene.events.emit('playerDeath', cause);
     }
 
 

@@ -33,11 +33,6 @@ export class SoundManager {
     private game: Phaser.Game;
     private sound: Phaser.Sound.BaseSoundManager;
 
-    // One dedicated Sound per one-shot key, restarted on each play. Reusing the instance
-    // (rather than game.sound.play(key), which failed to re-trigger reliably here) guarantees
-    // repeated playback and gives the "overwrite" behaviour footsteps/switches want.
-    private oneShots: Record<string, Phaser.Sound.BaseSound> = {};
-
     // Looping / sustained sounds — held so they can be started and stopped by game state.
     private jumpSound?: Phaser.Sound.BaseSound;
     private magnetSound?: Phaser.Sound.BaseSound;
@@ -61,15 +56,13 @@ export class SoundManager {
     }
 
     // ── one-shot helper ───────────────────────────────────────────────────────
+    // Fire-and-forget: a fresh Sound per trigger that removes itself on completion. We hold
+    // no long-lived reference, so nothing can go stale when a scene restarts (respawn / level
+    // change) — the classic "plays once, then never again" bug. The global sound manager keeps
+    // its own list and calls destroy() for us once the clip ends via `remove-on-complete`.
     private play(key: string, config?: Phaser.Types.Sound.SoundConfig) {
         if (!this.game.cache.audio.exists(key)) return;
-        let s = this.oneShots[key];
-        if (!s) {
-            s = this.sound.add(key);
-            this.oneShots[key] = s;
-        }
-        if (s.isPlaying) s.stop();
-        s.play(config);
+        this.sound.play(key, config);
     }
 
     private registerEvents() {
@@ -106,7 +99,7 @@ export class SoundManager {
         e.on('sfx-switch', () => this.play('switch'),   this);
         e.on('success',    () => this.play('SuccessUI'), this);
 
-        // A level reset / restart tears down every sustained loop.
+        //level reset
         e.on('sfx-stop-loops', this.stopLoops, this);
     }
 
@@ -122,12 +115,23 @@ export class SoundManager {
         this.play('walk', { volume: 0.01, rate: randomRate(0.25) });
     }
 
-    // Variable jump: sustains while the jump is held, released with the key.
+    // Reuse (or lazily create) a single looping Sound instance for a sustained effect, so
+    // repeated start/stop cycles never stack overlapping copies. Returns the live instance.
+    private ensureLoop(existing: Phaser.Sound.BaseSound | undefined, key: string, volume: number): Phaser.Sound.BaseSound | undefined {
+        if (!this.game.cache.audio.exists(key)) return existing;
+        let s = existing;
+        if (!s || s.pendingRemove) s = this.sound.add(key, { loop: true, volume });
+        if (!s.isPlaying) s.play();
+        return s;
+    }
+
+    // Variable jump: sustains while the jump is held, released with the key. One reused
+    // instance — creating a fresh Sound per jump is what made it sound doubled.
     private startJump() {
-        if (this.jumpSound?.isPlaying) return;
         if (!this.game.cache.audio.exists('jump')) return;
-        this.jumpSound = this.sound.add('jump', { rate: randomRate(0.05) });
-        this.jumpSound.play();
+        if (!this.jumpSound || this.jumpSound.pendingRemove) this.jumpSound = this.sound.add('jump');
+        if (this.jumpSound.isPlaying) return;
+        this.jumpSound.play({ rate: randomRate(0.15) });
     }
 
     private stopJump() {
@@ -135,43 +139,31 @@ export class SoundManager {
     }
 
     private toggleMagnet({ active }: { active: boolean }) {
-        if (active) {
-            if (this.magnetSound?.isPlaying) return;
-            if (!this.game.cache.audio.exists('magnet')) return;
-            this.magnetSound = this.sound.add('magnet', { loop: true, volume: 0.6 });
-            this.magnetSound.play();
-        } else if (this.magnetSound?.isPlaying) {
-            this.magnetSound.stop();
-        }
+        if (active) this.magnetSound = this.ensureLoop(this.magnetSound, 'magnet', 0.6);
+        else this.magnetSound?.stop();
     }
 
     private togglePlatform({ moving }: { moving: boolean }) {
-        if (moving) {
-            if (this.platformSound?.isPlaying) return;
-            if (!this.game.cache.audio.exists('movePlatform')) return;
-            this.platformSound = this.sound.add('movePlatform', { loop: true, volume: 0.6 });
-            this.platformSound.play();
-        } else if (this.platformSound?.isPlaying) {
-            this.platformSound.stop();
-        }
+        if (moving) this.platformSound = this.ensureLoop(this.platformSound, 'movePlatform', 0.6);
+        else this.platformSound?.stop();
     }
 
     // Saw blade: a quiet sustained whir whenever any saw is travelling.
     private toggleSaw({ moving }: { moving: boolean }) {
-        if (moving) {
-            if (this.sawSound?.isPlaying) return;
-            if (!this.game.cache.audio.exists('saw')) return;
-            this.sawSound = this.sound.add('saw', { loop: true, volume: 0.15 });
-            this.sawSound.play();
-        } else if (this.sawSound?.isPlaying) {
-            this.sawSound.stop();
-        }
+        if (moving) this.sawSound = this.ensureLoop(this.sawSound, 'saw', 0.15);
+        else this.sawSound?.stop();
     }
 
+    // Tear every sustained loop down completely — stop, destroy, and drop the reference.
+    // Because this SoundManager lives in the game registry across scene restarts (respawn /
+    // level change), a merely-stopped instance can be left stale or torn down by the old
+    // scene, so reusing it later plays nothing. Nulling forces a fresh Sound next time.
     private stopLoops() {
-        this.stopJump();
-        this.magnetSound?.stop();
-        this.platformSound?.stop();
-        this.sawSound?.stop();
+        for (const s of [this.jumpSound, this.magnetSound, this.platformSound, this.sawSound]) {
+            if (s && !s.pendingRemove) { s.stop(); s.destroy(); }
+        }
+        this.jumpSound = this.magnetSound = this.platformSound = this.sawSound = undefined;
     }
+
+    
 }

@@ -30,6 +30,7 @@ export class PlayerController {
         const inKnockback = player.inKnockback;
         const leftDown = cursors.left.isDown;
         const rightDown = cursors.right.isDown;
+        const wasGrounded = player.grounded;
 
         if (!inKnockback) {
             if (leftDown && !rightDown) {
@@ -118,6 +119,10 @@ export class PlayerController {
         const barScene = this.scene.scene.get('volumeBar') as VolumeBarScene | undefined;
         const tintVol = barScene?.displayedVol ?? 0;
         player.setTint(volumeToTintColor(tintVol));
+
+        if (player.grounded && !wasGrounded) {
+            this.scene.game.events.emit('sfx-jump-stop');
+        }
     }
 
     // Returns the X velocity of the first moving platform directly beneath the
@@ -142,4 +147,6 @@ export class PlayerController {
         }
         return 0; // Automatically returns 0 for static walls/tiles
     }
+
+    
 }

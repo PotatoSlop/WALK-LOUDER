@@ -41,11 +41,15 @@ export class Switch extends Phaser.GameObjects.Rectangle {
         const effectivelyTouching = this.touchingThisFrame || this.framesWithoutTouch < Switch.EXIT_GRACE_FRAMES;
         const entered = effectivelyTouching && !this.wasTouching;
 
+        const prevPowered = this.powered;
         if (this.switchType === 'button' || this.switchType === 'oneshot') {
             this.powered = effectivelyTouching;
         } else if (entered) {
             this.powered = !this.powered;
         }
+
+        // Click on every power transition (press, release, lever flip either way).
+        if (this.powered !== prevPowered) this.scene.game.events.emit('sfx-switch');
 
         this.wasTouching = effectivelyTouching;
         this.touchingThisFrame = false;
@@ -61,4 +65,6 @@ export class Switch extends Phaser.GameObjects.Rectangle {
         // tileSprite uses origin (0,1) — convert center to bottom-left corner
         if (this.tileSprite) this.tileSprite.setPosition(x - this.width / 2, y + this.height / 2);
     }
+
+    
 }

@@ -54,7 +54,7 @@ export class GameScene extends Phaser.Scene {
     private debugKey!: Phaser.Input.Keyboard.Key;
     private playerController!: PlayerController;
 
-    // Previous frame's sustained-sound state — sounds are toggled only on transitions.
+    // Previous frame's sustained-sound state — loops toggle only on transitions.
     private platformMoving: boolean = false;
     private magnetPulling: boolean = false;
     private sawTravelling: boolean = false;
@@ -88,12 +88,14 @@ export class GameScene extends Phaser.Scene {
     create() {
         this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
-        // Sound is wired through the persistent global event emitter, so build the manager
-        // once and reuse it across scene restarts (respawns / level changes).
+        // Sound is wired through the persistent global event emitter and the global sound
+        // manager, both of which outlive scene restarts. Build the manager exactly ONCE and
+        // reuse it — creating a second one would double every listener (each sfx would fire
+        // twice). Its listeners never need tearing down because it lives for the whole game.
         if (!this.game.registry.get('soundManager')) {
             this.game.registry.set('soundManager', new SoundManager(this));
         }
-        // Sustained-sound state is per-run — reset so the first move/pull after a
+        // Sustained-sound state is per-run — reset so the first move/pull/saw after a
         // restart re-triggers its loop (the scene instance is reused across restarts).
         this.platformMoving = false;
         this.magnetPulling = false;
@@ -190,7 +192,11 @@ export class GameScene extends Phaser.Scene {
         }
 
         for (const h of this.hazardGroup.getChildren()) {
-            this.physics.add.overlap(this.player, h, (p) => (p as Player).death());
+            this.physics.add.overlap(this.player, h, (p) => {
+                // Manually trigger the spike sound!
+                this.game.events.emit('sfx-trigger-spike'); 
+                (p as Player).death('spike');
+            });
         }
 
         // The magnet kills on contact with its own tile — a plain overlap (disabled magnets have
@@ -367,7 +373,7 @@ export class GameScene extends Phaser.Scene {
         this.updateLoopSounds();
     }
 
-    // Toggle the sustained platform/magnet sounds on state transitions only.
+    // Toggle the sustained platform/magnet/saw sounds on state transitions only.
     private updateLoopSounds() {
         const anyPlatformMoving = this.platformGroup.getChildren().some(
             (p: Phaser.GameObjects.GameObject) => {
