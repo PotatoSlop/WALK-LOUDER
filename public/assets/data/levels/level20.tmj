@@ -3,22 +3,22 @@
  "infinite":false,
  "layers":[
         {
-         "data":[0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42, 0, 42, 0, 0, 0, 0, 0, 0, 42, 0, 42, 42, 42, 42, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 0, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 0, 0, 0, 0, 0, 42, 42, 42, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 0, 0, 0, 0, 42, 42, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 442, 42, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 442, 42, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0,
-            42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 442, 42, 42, 42, 42, 42, 42, 0, 0, 0, 42, 42, 42, 42, 42,
+         "data":[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 42, 42, 42, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -39,8 +39,20 @@
          "name":"Markers",
          "objects":[
                 {
+                 "height":8,
+                 "id":15,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":24,
+                 "x":152,
+                 "y":72
+                }, 
+                {
                  "height":0,
-                 "id":33,
+                 "id":36,
                  "name":"",
                  "opacity":1,
                  "point":true,
@@ -48,20 +60,20 @@
                  "type":"",
                  "visible":true,
                  "width":0,
-                 "x":184,
-                 "y":56
+                 "x":8,
+                 "y":120
                 }, 
                 {
                  "height":8,
-                 "id":44,
+                 "id":42,
                  "name":"",
                  "opacity":1,
                  "rotation":0,
                  "type":"",
                  "visible":true,
-                 "width":24,
-                 "x":72,
-                 "y":48
+                 "width":16,
+                 "x":224,
+                 "y":80
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -99,138 +111,249 @@
          "name":"Interactables",
          "objects":[
                 {
-                 "gid":718,
+                 "gid":778,
                  "height":8,
-                 "id":18,
+                 "id":2,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
                          "name":"keyType",
                          "type":"string",
-                         "value":"1718"
+                         "value":"2021"
+                        }, 
+                        {
+                         "name":"targetLevel",
+                         "type":"string",
+                         "value":"level21"
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":192,
-                 "y":56
+                 "x":208,
+                 "y":48
                 }, 
                 {
                  "gid":758,
                  "height":8,
-                 "id":25,
+                 "id":3,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
                          "name":"linkedDoorId",
                          "type":"object",
-                         "value":26
+                         "value":2
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":224,
-                 "y":112
+                 "x":208,
+                 "y":40
                 }, 
                 {
-                 "gid":778,
+                 "gid":522,
                  "height":8,
-                 "id":26,
+                 "id":6,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"keyType",
-                         "type":"string",
-                         "value":"1718"
+                         "name":"friction",
+                         "type":"float",
+                         "value":10
                         }, 
                         {
-                         "name":"targetLevel",
-                         "type":"string",
-                         "value":"level18"
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":224,
-                 "y":120
-                }, 
-                {
-                 "gid":64,
-                 "height":8,
-                 "id":45,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"endTarget",
-                         "type":"object",
-                         "value":44
-                        }, 
-                        {
-                         "name":"speed",
+                         "name":"mass",
                          "type":"int",
-                         "value":25
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":72,
-                 "y":104
-                }, 
-                {
-                 "gid":66,
-                 "height":8,
-                 "id":46,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"endTarget",
-                         "type":"object",
-                         "value":44
-                        }, 
-                        {
-                         "name":"speed",
-                         "type":"int",
-                         "value":25
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":88,
-                 "y":104
-                }, 
-                {
-                 "gid":50,
-                 "height":8,
-                 "id":47,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"endTarget",
-                         "type":"object",
-                         "value":44
-                        }, 
-                        {
-                         "name":"speed",
-                         "type":"int",
-                         "value":25
+                         "value":20
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
                  "x":80,
-                 "y":104
+                 "y":120
+                }, 
+                {
+                 "gid":372,
+                 "height":8,
+                 "id":11,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":128,
+                 "y":120
+                }, 
+                {
+                 "gid":64,
+                 "height":8,
+                 "id":12,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":15
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":11
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":120,
+                 "y":80
+                }, 
+                {
+                 "gid":50,
+                 "height":8,
+                 "id":13,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":15
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":11
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":128,
+                 "y":80
+                }, 
+                {
+                 "gid":66,
+                 "height":8,
+                 "id":14,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":15
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":11
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":136,
+                 "y":80
+                }, 
+                {
+                 "gid":318,
+                 "height":8,
+                 "id":16,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"keyType",
+                         "type":"string",
+                         "value":"2021"
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":128,
+                 "y":72
+                }, 
+                {
+                 "gid":372,
+                 "height":8,
+                 "id":33,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":184,
+                 "y":120
+                }, 
+                {
+                 "gid":352,
+                 "height":8,
+                 "id":38,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":90,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":152,
+                 "y":56
+                }, 
+                {
+                 "gid":64,
+                 "height":8,
+                 "id":39,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":42
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":38
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":224,
+                 "y":56
+                }, 
+                {
+                 "gid":66,
+                 "height":8,
+                 "id":40,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":42
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":38
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":232,
+                 "y":56
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -244,33 +367,14 @@
          "name":"Hazards",
          "objects":[
                 {
-                 "gid":2147483707,
+                 "gid":456,
                  "height":8,
-                 "id":2,
+                 "id":4,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"strength",
-                         "type":"int",
-                         "value":400
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":112,
-                 "y":112
-                }, 
-                {
-                 "gid":152,
-                 "height":8,
-                 "id":13,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"offTime",
+                         "name":"fireInterval",
                          "type":"int",
                          "value":1500
                         }],
@@ -278,167 +382,89 @@
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":112,
-                 "y":80
+                 "x":40,
+                 "y":120
                 }, 
                 {
                  "gid":152,
-                 "height":8,
-                 "id":14,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"offTime",
-                         "type":"int",
-                         "value":1500
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":120,
-                 "y":80
-                }, 
-                {
-                 "gid":152,
-                 "height":8,
-                 "id":15,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"offTime",
-                         "type":"int",
-                         "value":1500
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":128,
-                 "y":80
-                }, 
-                {
-                 "gid":494,
-                 "height":8,
-                 "id":16,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"endTarget",
-                         "type":"object",
-                         "value":33
-                        }, 
-                        {
-                         "name":"speed",
-                         "type":"int",
-                         "value":20
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":160,
-                 "y":56
-                }, 
-                {
-                 "gid":459,
                  "height":8,
                  "id":31,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"strength",
-                         "type":"int",
-                         "value":400
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":33
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":184,
-                 "y":112
+                 "x":224,
+                 "y":48
                 }, 
                 {
                  "gid":152,
                  "height":8,
-                 "id":34,
+                 "id":32,
                  "name":"",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":33
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":72,
-                 "y":96
+                 "x":232,
+                 "y":48
                 }, 
                 {
-                 "gid":152,
+                 "gid":94,
                  "height":8,
                  "id":35,
                  "name":"",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":36
+                        }, 
+                        {
+                         "name":"speed",
+                         "type":"int",
+                         "value":70
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":80,
-                 "y":96
+                 "x":216,
+                 "y":120
                 }, 
                 {
-                 "gid":152,
-                 "height":8,
-                 "id":36,
-                 "name":"",
-                 "opacity":1,
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":88,
-                 "y":96
-                }, 
-                {
-                 "gid":3221225624,
-                 "height":8,
-                 "id":41,
-                 "name":"",
-                 "opacity":1,
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":88,
-                 "y":48
-                }, 
-                {
-                 "gid":3221225624,
-                 "height":8,
-                 "id":42,
-                 "name":"",
-                 "opacity":1,
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":80,
-                 "y":48
-                }, 
-                {
-                 "gid":3221225624,
+                 "gid":2147483704,
                  "height":8,
                  "id":43,
                  "name":"",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"fireInterval",
+                         "type":"int",
+                         "value":1500
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":72,
-                 "y":48
+                 "x":232,
+                 "y":120
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -447,7 +473,7 @@
          "y":0
         }],
  "nextlayerid":10,
- "nextobjectid":49,
+ "nextobjectid":44,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.12.1",

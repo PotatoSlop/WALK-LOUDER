@@ -3,22 +3,22 @@
  "infinite":false,
  "layers":[
         {
-         "data":[0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42, 0, 42, 0, 0, 0, 0, 0, 0, 42, 0, 42, 42, 42, 42, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 0, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 42, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 0, 0, 0, 0, 0, 42, 42, 42, 42, 0, 42, 42, 42,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 0, 0, 0, 0, 42, 42, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 442, 42, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 442, 42, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0,
-            42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0, 0, 0, 0, 442, 42, 42, 42, 42, 42, 42, 0, 0, 0, 42, 42, 42, 42, 42,
+         "data":[42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42,
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42,
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 42, 0, 42,
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 42, 42, 0, 42, 42, 0, 0, 42, 0, 42,
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 42, 0, 0, 42, 0, 42,
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42,
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42,
+            42, 42, 42, 42, 0, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 42,
+            42, 42, 42, 42, 0, 0, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 42,
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42,
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42,
+            42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 0, 0, 42, 42, 42, 42, 42, 42, 0, 0, 42, 42, 42, 42, 0, 42,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 42,
+            42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -39,8 +39,20 @@
          "name":"Markers",
          "objects":[
                 {
+                 "height":8,
+                 "id":15,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":16,
+                 "x":176,
+                 "y":96
+                }, 
+                {
                  "height":0,
-                 "id":33,
+                 "id":71,
                  "name":"",
                  "opacity":1,
                  "point":true,
@@ -48,20 +60,8 @@
                  "type":"",
                  "visible":true,
                  "width":0,
-                 "x":184,
-                 "y":56
-                }, 
-                {
-                 "height":8,
-                 "id":44,
-                 "name":"",
-                 "opacity":1,
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":24,
-                 "x":72,
-                 "y":48
+                 "x":104,
+                 "y":96
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -99,60 +99,88 @@
          "name":"Interactables",
          "objects":[
                 {
-                 "gid":718,
+                 "gid":372,
                  "height":8,
-                 "id":18,
+                 "id":12,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"keyType",
+                         "name":"switchType",
                          "type":"string",
-                         "value":"1718"
+                         "value":"oneshot"
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
                  "x":192,
-                 "y":56
+                 "y":120
                 }, 
                 {
-                 "gid":758,
+                 "gid":64,
                  "height":8,
-                 "id":25,
+                 "id":13,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"linkedDoorId",
+                         "name":"endTarget",
                          "type":"object",
-                         "value":26
+                         "value":15
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":12
+                        }, 
+                        {
+                         "name":"speed",
+                         "type":"int",
+                         "value":70
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":224,
-                 "y":112
+                 "x":112,
+                 "y":104
                 }, 
                 {
-                 "gid":778,
+                 "gid":66,
                  "height":8,
-                 "id":26,
+                 "id":14,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"keyType",
-                         "type":"string",
-                         "value":"1718"
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":15
                         }, 
                         {
-                         "name":"targetLevel",
-                         "type":"string",
-                         "value":"level18"
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":12
+                        }, 
+                        {
+                         "name":"speed",
+                         "type":"int",
+                         "value":70
                         }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":120,
+                 "y":104
+                }, 
+                {
+                 "gid":372,
+                 "height":8,
+                 "id":18,
+                 "name":"",
+                 "opacity":1,
                  "rotation":0,
                  "type":"",
                  "visible":true,
@@ -161,76 +189,259 @@
                  "y":120
                 }, 
                 {
-                 "gid":64,
+                 "gid":378,
                  "height":8,
-                 "id":45,
+                 "id":19,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"endTarget",
-                         "type":"object",
-                         "value":44
+                         "name":"keyType",
+                         "type":"string",
+                         "value":"2122"
                         }, 
                         {
-                         "name":"speed",
-                         "type":"int",
-                         "value":25
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":72,
-                 "y":104
-                }, 
-                {
-                 "gid":66,
-                 "height":8,
-                 "id":46,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"endTarget",
-                         "type":"object",
-                         "value":44
-                        }, 
-                        {
-                         "name":"speed",
-                         "type":"int",
-                         "value":25
+                         "name":"targetLevel",
+                         "type":"string",
+                         "value":"level22"
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
                  "x":88,
-                 "y":104
+                 "y":96
                 }, 
                 {
-                 "gid":50,
+                 "gid":358,
                  "height":8,
-                 "id":47,
+                 "id":20,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedDoorId",
+                         "type":"object",
+                         "value":19
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":88,
+                 "y":88
+                }, 
+                {
+                 "gid":318,
+                 "height":8,
+                 "id":21,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"keyType",
+                         "type":"string",
+                         "value":"2122"
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":184,
+                 "y":16
+                }, 
+                {
+                 "gid":122,
+                 "height":8,
+                 "id":22,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"friction",
+                         "type":"float",
+                         "value":0.1
+                        }, 
+                        {
+                         "name":"mass",
+                         "type":"int",
+                         "value":1
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":200,
+                 "y":16
+                }, 
+                {
+                 "gid":372,
+                 "height":8,
+                 "id":40,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":200,
+                 "y":24
+                }, 
+                {
+                 "gid":372,
+                 "height":8,
+                 "id":48,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"switchType",
+                         "type":"string",
+                         "value":"oneshot"
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":192,
+                 "y":96
+                }, 
+                {
+                 "gid":122,
+                 "height":8,
+                 "id":62,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"friction",
+                         "type":"float",
+                         "value":1
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":160,
+                 "y":16
+                }, 
+                {
+                 "gid":45,
+                 "height":8,
+                 "id":64,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
                          "name":"endTarget",
                          "type":"object",
-                         "value":44
+                         "value":67
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":68
                         }, 
                         {
                          "name":"speed",
                          "type":"int",
-                         "value":25
+                         "value":100
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":80,
-                 "y":104
+                 "x":168,
+                 "y":48
+                }, 
+                {
+                 "gid":85,
+                 "height":8,
+                 "id":65,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":67
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":68
+                        }, 
+                        {
+                         "name":"speed",
+                         "type":"int",
+                         "value":100
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":168,
+                 "y":64
+                }, 
+                {
+                 "gid":48,
+                 "height":8,
+                 "id":66,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":67
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":68
+                        }, 
+                        {
+                         "name":"speed",
+                         "type":"int",
+                         "value":100
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":168,
+                 "y":56
+                }, 
+                {
+                 "height":24,
+                 "id":67,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":168,
+                 "y":8
+                }, 
+                {
+                 "gid":372,
+                 "height":8,
+                 "id":68,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"switchType",
+                         "type":"string",
+                         "value":"oneshot"
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":184,
+                 "y":24
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -244,123 +455,132 @@
          "name":"Hazards",
          "objects":[
                 {
-                 "gid":2147483707,
+                 "gid":56,
                  "height":8,
                  "id":2,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
-                         "name":"strength",
+                         "name":"bulletSpeed",
                          "type":"int",
-                         "value":400
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":112,
-                 "y":112
-                }, 
-                {
-                 "gid":152,
-                 "height":8,
-                 "id":13,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"offTime",
-                         "type":"int",
-                         "value":1500
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":112,
-                 "y":80
-                }, 
-                {
-                 "gid":152,
-                 "height":8,
-                 "id":14,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"offTime",
-                         "type":"int",
-                         "value":1500
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":120,
-                 "y":80
-                }, 
-                {
-                 "gid":152,
-                 "height":8,
-                 "id":15,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"offTime",
-                         "type":"int",
-                         "value":1500
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":8,
-                 "x":128,
-                 "y":80
-                }, 
-                {
-                 "gid":494,
-                 "height":8,
-                 "id":16,
-                 "name":"",
-                 "opacity":1,
-                 "properties":[
-                        {
-                         "name":"endTarget",
-                         "type":"object",
-                         "value":33
+                         "value":800
                         }, 
                         {
-                         "name":"speed",
+                         "name":"fireInterval",
                          "type":"int",
-                         "value":20
+                         "value":1500
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":160,
-                 "y":56
+                 "x":0,
+                 "y":120
                 }, 
                 {
-                 "gid":459,
+                 "gid":59,
                  "height":8,
-                 "id":31,
+                 "id":3,
                  "name":"",
                  "opacity":1,
                  "properties":[
                         {
                          "name":"strength",
                          "type":"int",
-                         "value":400
+                         "value":300
                         }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":184,
-                 "y":112
+                 "x":8,
+                 "y":88
+                }, 
+                {
+                 "gid":574,
+                 "height":8,
+                 "id":10,
+                 "name":"",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":208,
+                 "y":120
+                }, 
+                {
+                 "gid":2147484223,
+                 "height":8,
+                 "id":11,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"forceX",
+                         "type":"int",
+                         "value":-400
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":12
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":200,
+                 "y":120
+                }, 
+                {
+                 "gid":152,
+                 "height":8,
+                 "id":32,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":96,
+                 "y":64
+                }, 
+                {
+                 "gid":152,
+                 "height":8,
+                 "id":33,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":104,
+                 "y":64
                 }, 
                 {
                  "gid":152,
@@ -368,12 +588,23 @@
                  "id":34,
                  "name":"",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":72,
-                 "y":96
+                 "x":112,
+                 "y":64
                 }, 
                 {
                  "gid":152,
@@ -381,12 +612,23 @@
                  "id":35,
                  "name":"",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":80,
-                 "y":96
+                 "x":120,
+                 "y":64
                 }, 
                 {
                  "gid":152,
@@ -394,15 +636,50 @@
                  "id":36,
                  "name":"",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":88,
-                 "y":96
+                 "x":128,
+                 "y":64
                 }, 
                 {
-                 "gid":3221225624,
+                 "gid":152,
+                 "height":8,
+                 "id":37,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":136,
+                 "y":64
+                }, 
+                {
+                 "gid":174,
                  "height":8,
                  "id":41,
                  "name":"",
@@ -411,34 +688,242 @@
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":88,
-                 "y":48
+                 "x":192,
+                 "y":64
                 }, 
                 {
-                 "gid":3221225624,
+                 "gid":2147483823,
                  "height":8,
                  "id":42,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"forceX",
+                         "type":"int",
+                         "value":-400
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":18
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":184,
+                 "y":64
+                }, 
+                {
+                 "gid":174,
+                 "height":8,
+                 "id":45,
                  "name":"",
                  "opacity":1,
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
-                 "x":80,
-                 "y":48
+                 "x":208,
+                 "y":96
                 }, 
                 {
-                 "gid":3221225624,
+                 "gid":2147483823,
                  "height":8,
-                 "id":43,
+                 "id":47,
                  "name":"",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"forceX",
+                         "type":"int",
+                         "value":-100
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":48
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":200,
+                 "y":96
+                }, 
+                {
+                 "gid":94,
+                 "height":8,
+                 "id":70,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"endTarget",
+                         "type":"object",
+                         "value":71
+                        }, 
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":48
+                        }, 
+                        {
+                         "name":"startEnabled",
+                         "type":"bool",
+                         "value":true
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":8,
+                 "y":96
+                }, 
+                {
+                 "gid":152,
+                 "height":8,
+                 "id":72,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
                  "width":8,
                  "x":72,
-                 "y":48
+                 "y":64
+                }, 
+                {
+                 "gid":152,
+                 "height":8,
+                 "id":73,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":80,
+                 "y":64
+                }, 
+                {
+                 "gid":152,
+                 "height":8,
+                 "id":74,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":88,
+                 "y":64
+                }, 
+                {
+                 "gid":152,
+                 "height":8,
+                 "id":75,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":48,
+                 "y":64
+                }, 
+                {
+                 "gid":152,
+                 "height":8,
+                 "id":76,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":56,
+                 "y":64
+                }, 
+                {
+                 "gid":152,
+                 "height":8,
+                 "id":77,
+                 "name":"",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"linkedSwitchId",
+                         "type":"object",
+                         "value":40
+                        }, 
+                        {
+                         "name":"offTime",
+                         "type":"int",
+                         "value":1000
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":8,
+                 "x":64,
+                 "y":64
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -447,7 +932,7 @@
          "y":0
         }],
  "nextlayerid":10,
- "nextobjectid":49,
+ "nextobjectid":78,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.12.1",

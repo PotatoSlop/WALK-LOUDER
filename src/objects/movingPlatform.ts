@@ -87,13 +87,12 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
             if (reached) this.arrived = true;
         }
 
-        this.attached.forEach(({ obj, offsetX, offsetY, friction }) => {
-            // Too slippery to stick — let the rider slide off instead of riding along.
-            if (friction < MovingPlatform.STICK_FRICTION_THRESHOLD) return;
-            obj.syncPosition(this.x + offsetX, this.y + offsetY);
-        });
-
         if (this.tileSprite) this.tileSprite.setPosition(Math.round(this.x), Math.round(this.y));
+
+        for (const {obj, offsetX, offsetY, friction} of this.attached) {
+            if (friction < MovingPlatform.STICK_FRICTION_THRESHOLD) continue;
+        obj.syncPosition(this.x + offsetX, this.y + offsetY);
+    }
     }
 
     private seekTarget(target: Vec2, delta: number): boolean {
@@ -115,4 +114,6 @@ export class MovingPlatform extends Phaser.GameObjects.Rectangle {
         this.Body.reset(target.x, target.y);
         return true;
     }
+
+    
 }

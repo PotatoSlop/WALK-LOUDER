@@ -43,42 +43,37 @@ export class TiledContext {
         return img;
     }
         
-    // Render a single tile at a center-origin position, applying the Tiled flip/rotation
-    // flags as the orientation (same mapping as the turret assembly).
-    public addOrientedTileSprite(obj: Phaser.Types.Tilemaps.TiledObject, cx: number, cy: number, depth: number = 48): Phaser.GameObjects.Image {
+    // Decode the Tiled flip/rotation flags baked into a tile object into a Phaser
+    // transform (same mapping as the turret assembly). Phaser strips the flags out
+    // of obj.gid and exposes them as booleans.
+    public orientationFromFlips(obj: Phaser.Types.Tilemaps.TiledObject): { angle: number; scaleX: number; scaleY: number } {
         const H = !!obj.flippedHorizontal;
         const V = !!obj.flippedVertical;
         const D = !!obj.flippedAntiDiagonal;
         let angle = 0, scaleX = 1, scaleY = 1;
         if (D) {
-            if ( H && !V) { 
-                angle =  90; 
-            }
-            else if (!H &&  V) { 
-                angle = -90; 
-            }
-            else if (!H && !V) { 
-                angle =  90; 
-                scaleY = -1; 
-            }
-            else { 
-                angle = -90; 
-                scaleX = -1; 
-            }
-
+            if      ( H && !V) { angle =  90; }
+            else if (!H &&  V) { angle = -90; }
+            else if (!H && !V) { angle =  90; scaleY = -1; }
+            else               { angle = -90; scaleX = -1; }
         } else {
-            if (H && V)   { 
-                angle = 180; 
-            }
-            else if (H) { 
-                scaleX = -1; 
-            }
-            else if (V) { 
-                scaleY = -1; 
-            }
+            if      (H && V)   { angle = 180; }
+            else if (H)        { scaleX = -1; }
+            else if (V)        { scaleY = -1; }
         }
+        return { angle, scaleX, scaleY };
+    }
+
+    // Render a single tile at a center-origin position, applying the Tiled flip/rotation
+    // flags as the orientation (same mapping as the turret assembly).
+    public addOrientedTileSprite(obj: Phaser.Types.Tilemaps.TiledObject, cx: number, cy: number, depth: number = 48): Phaser.GameObjects.Image {
+        const { angle, scaleX, scaleY } = this.orientationFromFlips(obj);
+        // Tiled orientation has TWO independent sources: the flip flags baked into the gid
+        // (decoded above) and the object's free `rotation` field (degrees, clockwise). Both
+        // must be applied; objectGeometry already centres the tile assuming this rotation.
+        const rot = obj.rotation ?? 0;
         const frame = this.gidFrame((obj.gid ?? 1) & 0x1FFFFFFF); // Bitmask rotation data -> frame contains only sprite id data
-        return this.scene.add.image(cx, cy, 'tileSprites', frame).setOrigin(0.5, 0.5).setDepth(depth).setAngle(angle).setScale(scaleX, scaleY);
+        return this.scene.add.image(cx, cy, 'tileSprites', frame).setOrigin(0.5, 0.5).setDepth(depth).setAngle(angle + rot).setScale(scaleX, scaleY);
     }
     public getTiledProp<T = any>(
         obj: Phaser.Types.Tilemaps.TiledObject, name: string): T | undefined {

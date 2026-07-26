@@ -1,7 +1,7 @@
 const STORAGE_KEY = 'walk-louder-settings';
 
 export interface GameSettings {
-    saturation: number;  // 0-100, 50 = neutral
+    volume: number;  // 0-100, master output volume
     barrelEnabled: boolean;
     scanlinesEnabled: boolean;
     particlesEnabled: boolean;
@@ -11,7 +11,7 @@ export interface GameSettings {
 }
 
 const DEFAULTS: GameSettings = {
-    saturation: 50,
+    volume: 100,
     barrelEnabled: true,
     scanlinesEnabled: true,
     particlesEnabled: true,

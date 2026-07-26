@@ -18,8 +18,9 @@ export function setupCameraFX(scene: Phaser.Scene): void {
     const barrelFilter = cam.filters!.external.addBarrel(1.05);
     barrelFilter.active = getSetting('barrelEnabled');
 
+    // Saturation is fixed at the neutral default (was 50 on a 0-100 scale → saturate(0)).
     const colorMatrixFilter = cam.filters!.external.addColorMatrix();
-    colorMatrixFilter.colorMatrix.saturate((getSetting('saturation') - 50) / 50);
+    colorMatrixFilter.colorMatrix.saturate(0);
 
     cam.filters!.external.addVignette(0.5, 0.5, 0.75, 0.1);
 
@@ -31,9 +32,6 @@ export function setupCameraFX(scene: Phaser.Scene): void {
     }
 
     scene.game.events.on('setting-changed', ({ key, value }: { key: string, value: any }) => {
-        if (key === 'saturation') {
-            colorMatrixFilter.colorMatrix.saturate((value - 50) / 50);
-        }
         if (key === 'barrelEnabled') {
             barrelFilter.active = value;
         }

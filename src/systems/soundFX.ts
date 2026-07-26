@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { getSetting } from "./settingsManager";
 
 // All sfx keys map 1:1 to files in public/assets/sfx/<key>.wav
 const SFX_KEYS = [
@@ -42,6 +43,8 @@ export class SoundManager {
     constructor(scene: Phaser.Scene) {
         this.game = scene.game;
         this.sound = scene.game.sound;
+        // Apply the persisted master volume before anything plays.
+        this.sound.volume = getSetting('volume') / 100;
         this.registerEvents();
     }
 
@@ -101,6 +104,11 @@ export class SoundManager {
 
         //level reset
         e.on('sfx-stop-loops', this.stopLoops, this);
+
+        // Pause menu: suspend/restore the sustained loops without tearing them down, so they
+        // resume mid-whir exactly where the (frozen) hazard left off.
+        e.on('sfx-pause-loops',  this.pauseLoops,  this);
+        e.on('sfx-resume-loops', this.resumeLoops, this);
     }
 
     // ── handlers ──────────────────────────────────────────────────────────────
@@ -163,6 +171,20 @@ export class SoundManager {
             if (s && !s.pendingRemove) { s.stop(); s.destroy(); }
         }
         this.jumpSound = this.magnetSound = this.platformSound = this.sawSound = undefined;
+    }
+
+    // Freeze any currently-playing loop (called when gameplay pauses).
+    private pauseLoops() {
+        for (const s of [this.jumpSound, this.magnetSound, this.platformSound, this.sawSound]) {
+            if (s?.isPlaying) s.pause();
+        }
+    }
+
+    // Restore the loops frozen by pauseLoops (called when gameplay resumes).
+    private resumeLoops() {
+        for (const s of [this.jumpSound, this.magnetSound, this.platformSound, this.sawSound]) {
+            if (s?.isPaused) s.resume();
+        }
     }
 
     

@@ -146,7 +146,9 @@ export class Magnet extends Phaser.GameObjects.Rectangle {
         if (!this.fxOn) { this.emitter.start(); this.fxOn = true; }
     }
 
-    update(bodies: Phaser.Physics.Arcade.Body[], blockedAt: (worldX: number, worldY: number) => boolean) {
+    // In magnet.ts
+
+    update(bodies: Phaser.Physics.Arcade.Body[], blockedAt: (worldX: number, worldY: number) => boolean, delta: number) {
         this.pulledThisFrame = false;
         if (this.linkedSwitch) {
             const on = this.linkedSwitch.powered !== this.switchInverted;
@@ -160,22 +162,30 @@ export class Magnet extends Phaser.GameObjects.Rectangle {
 
         const T = Magnet.TILE;
         const out = this.outward;
+        
+        // Convert the raw velocity strength into an acceleration multiplier
+        const accelMultiplier = 10; 
 
         for (const body of bodies) {
             if (!body.enable) continue;
 
             if (this.horizontal) {
-                // Must share the magnet's row (thin horizontal line field).
                 if (body.bottom <= this.y - T / 2 || body.top >= this.y + T / 2) continue;
-                const rel = (body.center.x - this.x) * out;   // distance out in front of the magnet
+                const rel = (body.center.x - this.x) * out; 
                 if (rel <= 0 || rel > fieldLen) continue;
-                body.velocity.x = -out * this.pullSpeed(rel, fieldLen);
+                
+                // Add force over time instead of hijacking velocity
+                const force = this.pullSpeed(rel, fieldLen) * accelMultiplier;
+                body.velocity.x += -out * force * (delta / 1000);
                 this.pulledThisFrame = true;
             } else {
                 if (body.right <= this.x - T / 2 || body.left >= this.x + T / 2) continue;
                 const rel = (body.center.y - this.y) * out;
                 if (rel <= 0 || rel > fieldLen) continue;
-                body.velocity.y = -out * this.pullSpeed(rel, fieldLen);
+                
+                // Add force over time instead of hijacking velocity
+                const force = this.pullSpeed(rel, fieldLen) * accelMultiplier;
+                body.velocity.y += -out * force * (delta / 1000);
                 this.pulledThisFrame = true;
             }
         }

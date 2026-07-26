@@ -34,9 +34,10 @@ export class SettingsScene extends Phaser.Scene {
         overlay.appendChild(title);
 
         // Sliders
-        overlay.appendChild(this.makeSlider('SATURATION', 0, 100, getSetting('saturation'), (v) => {
-            setSetting('saturation', v);
-            this.game.events.emit('setting-changed', { key: 'saturation', value: v });
+        overlay.appendChild(this.makeSlider('VOLUME', 0, 100, getSetting('volume'), (v) => {
+            setSetting('volume', v);
+            this.game.sound.volume = v / 100;
+            this.game.events.emit('setting-changed', { key: 'volume', value: v });
         }));
 
         // Checkboxes
@@ -107,6 +108,15 @@ export class SettingsScene extends Phaser.Scene {
             width: '260px',
         });
 
+        // Header row: label on the left, live numeric readout on the right.
+        const header = document.createElement('div');
+        Object.assign(header.style, {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            width: '100%',
+        });
+
         const labelEl = document.createElement('span');
         labelEl.textContent = label;
         Object.assign(labelEl.style, {
@@ -114,6 +124,17 @@ export class SettingsScene extends Phaser.Scene {
             fontSize: '12px',
             color: '#ffffff',
         });
+
+        const valueEl = document.createElement('span');
+        valueEl.textContent = String(value);
+        Object.assign(valueEl.style, {
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: '12px',
+            color: '#ffffff',
+        });
+
+        header.appendChild(labelEl);
+        header.appendChild(valueEl);
 
         const input = document.createElement('input');
         input.type = 'range';
@@ -131,11 +152,14 @@ export class SettingsScene extends Phaser.Scene {
             accentColor: '#ffffff',
         });
 
-        input.addEventListener('input', () => onChange(Number(input.value)));
+        input.addEventListener('input', () => {
+            valueEl.textContent = input.value;
+            onChange(Number(input.value));
+        });
         // Play the settings-interaction blip once per adjustment (on release), not per pixel.
         input.addEventListener('change', () => this.game.events.emit('sfx-switch'));
 
-        wrapper.appendChild(labelEl);
+        wrapper.appendChild(header);
         wrapper.appendChild(input);
         return wrapper;
     }

@@ -64,7 +64,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     init(data: { levelId?: string }) {
-        this.currentLevelId = data.levelId ?? 'level03';
+        this.currentLevelId = data.levelId ?? 'level23';
         this.transitioning = false;
         this.deathCt = this.game.registry.get('deathCt') ?? 0;
 
@@ -167,7 +167,23 @@ export class GameScene extends Phaser.Scene {
         this.physics.add.collider(this.player, this.platformGroup);
         this.physics.add.collider(this.player, this.boxGroup);
         this.physics.add.collider(this.boxGroup, platformLayer!);
-        this.physics.add.collider(this.boxGroup, this.platformGroup);
+        this.physics.add.collider(this.boxGroup, this.platformGroup, (boxObj, platformObj) => {
+            const box = boxObj as Box;
+            const platform = platformObj as MovingPlatform;
+
+            // Check if the box is meant to be slippery
+            // You can also import STICK_FRICTION_THRESHOLD from movingPlatform.ts
+            if (box.friction < 0.2) { 
+                
+                // Phaser's Arcade Physics automatically dragged the resting body.
+                // We cleanly undo that automatic drag right here.
+                const deltaX = platform.Body.x - platform.Body.prev.x;
+                const deltaY = platform.Body.y - platform.Body.prev.y;
+                
+                box.Body.x -= deltaX;
+                if (deltaY !== 0) box.Body.y -= deltaY;
+            }
+        });
         this.physics.add.collider(this.boxGroup, this.boxGroup);
         platformLayer!.setCollision([42]);
 
@@ -192,9 +208,13 @@ export class GameScene extends Phaser.Scene {
         }
 
         for (const h of this.hazardGroup.getChildren()) {
-            this.physics.add.overlap(this.player, h, (p) => {
+            this.physics.add.overlap(this.player, h, (p, hazard) => {
+                // A box the player is standing on shields them: the box top always sits above
+                // the (shrunk) spike tips, so any player↔spike overlap while riding that box is
+                // Arcade fast-fall penetration, not real contact. Suppress the kill in that case.
+                if (this.playerShieldedFromSpikeByBox((hazard as Hazard).body as Phaser.Physics.Arcade.Body)) return;
                 // Manually trigger the spike sound!
-                this.game.events.emit('sfx-trigger-spike'); 
+                this.game.events.emit('sfx-trigger-spike');
                 (p as Player).death('spike');
             });
         }
@@ -274,6 +294,15 @@ export class GameScene extends Phaser.Scene {
         // React to mode changes in one place. Listener lives on the global emitter (fires even
         // while this scene is paused), so remove it on shutdown to avoid stale-scene callbacks.
         this.game.events.on(GAMEMODE_CHANGED, this.applyMode, this);
+
+        // Sustained loops (saw whir, platform drone, magnet hum) are driven by the update loop,
+        // which halts while the scene is paused — so they'd otherwise keep sounding under the
+        // pause menu. Pause them with the scene and resume them when gameplay resumes; the loop
+        // audio stays in sync with the (frozen) hazard it belongs to. These are scene-local
+        // listeners, cleared automatically on shutdown.
+        this.events.on(Phaser.Scenes.Events.PAUSE,  () => this.game.events.emit('sfx-pause-loops'));
+        this.events.on(Phaser.Scenes.Events.RESUME, () => this.game.events.emit('sfx-resume-loops'));
+
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
             this.game.events.off(GAMEMODE_CHANGED, this.applyMode, this);
             // Kill any sustained loops so they don't bleed across the level teardown.
@@ -341,6 +370,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         this.playerController.update({ vol, jumpVol, cursors: this.cursors, delta });
+        this.carryPlayerOnBox();
 
         for (const item of [...this.itemGroup.getChildren()]) {
             const key = item as Key;
@@ -355,21 +385,23 @@ export class GameScene extends Phaser.Scene {
 
         this.switchGroup.getChildren().forEach((s: Phaser.GameObjects.GameObject) => {
             const sw = s as Switch;
-            if (bodyOverlapsSensor(this.player.Body, sw)) sw.onOverlap();
+            const zone = sw.triggerRect;
+            if (bodyOverlapsSensor(this.player.Body, zone)) sw.onOverlap();
             for (const b of this.boxGroup.getChildren()) {
                 if (!b.active) continue;
-                if (bodyOverlapsSensor((b as Box).Body, sw)) sw.onOverlap();
+                if (bodyOverlapsSensor((b as Box).Body, zone)) sw.onOverlap();
             }
             sw.tick();
         });
         this.hazardGroup.getChildren().forEach((h: Phaser.GameObjects.GameObject) => (h as Hazard).update());
         this.platformGroup.getChildren().forEach((p: Phaser.GameObjects.GameObject) => (p as MovingPlatform).update(delta));
         this.boxGroup.getChildren().forEach((b: Phaser.GameObjects.GameObject) => (b as Box).update());
+        const boxes = this.boxGroup.getChildren() as Box[];
         this.punchBoxGroup.getChildren().forEach((go: Phaser.GameObjects.GameObject) => {
-            (go as PunchBox).update(this.player);
+            (go as PunchBox).update(this.player, boxes);
         });
 
-        this.updateMagnets();
+        this.updateMagnets(delta);
         this.updateLoopSounds();
     }
 
@@ -404,7 +436,68 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    private updateMagnets() {
+    // Carry the player riding on top of a box. Boxes are movable dynamic bodies, so Arcade
+    // never transfers their motion to a rider the way an immovable MovingPlatform does.
+    //
+    // We ride by MATCHING the box's velocity, not by adding its per-frame displacement. An
+    // additive positional carry double-counts whenever the player already has world velocity
+    // of its own (punch knockback that hit them along with the box, or a landing mismatch):
+    // the player moves with the box under its own velocity AND gets the box delta added on
+    // top, drifting off the fast-moving box's edge and falling into the hazards it was
+    // carrying them over. Matching velocity keeps them locked to the box at any speed and
+    // naturally overrides residual/knockback velocity. When actively walking, the walk speed
+    // rides on top of the box velocity so the player can still move across it.
+    //
+    // Runs after the physics step; the velocity we set takes effect next frame. Platforms are
+    // excluded — their immovable friction already carries riders.
+    private carryPlayerOnBox() {
+        const pb = this.player.Body;
+        if (!(pb.blocked.down || pb.touching.down)) return;
+
+        for (const b of this.boxGroup.getChildren()) {
+            const box = b as Box;
+            if (!box.active) continue;
+            const bb = box.Body;
+            // Must horizontally overlap and be resting on the box's top surface.
+            if (pb.right <= bb.left || pb.left >= bb.right) continue;
+            if (Math.abs(bb.top - pb.bottom) > 4) continue;
+
+            // Carry up with a rising box (positionally, to avoid a 1-frame gap); let a
+            // descending box fall away rather than yanking the player down through it.
+            const dy = bb.y - bb.prev.y;
+            if (dy < 0) { pb.position.y += dy; pb.updateCenter(); }
+
+            // Horizontal: ride the box by matching its velocity. The controller already set
+            // this frame's velocity from input, so += adds walk-on-top when walking; when not
+            // walking we lock exactly to the box (overriding any residual/knockback velocity).
+            const walking = this.cursors.left.isDown || this.cursors.right.isDown;
+            pb.velocity.x = (walking ? pb.velocity.x : 0) + bb.velocity.x;
+            break;
+        }
+    }
+
+    // True when the player is standing on (or fast-falling onto) a box that lies between them
+    // and the spike — the box's top surface is at/above the spike's top and it overlaps the
+    // spike, so it is physically taking the hit. Used to reject spike overlaps that are really
+    // just the player's body momentarily penetrating the box during a hard landing.
+    private playerShieldedFromSpikeByBox(spikeBody: Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody): boolean {
+        const p = this.player.Body;
+        for (const b of this.boxGroup.getChildren()) {
+            const box = b as Box;
+            if (!box.active) continue;
+            const bb = box.Body;
+            // Player must horizontally overlap the box and be sitting on top of it (feet at or
+            // below the box's surface from a landing, torso still above that surface).
+            if (p.right <= bb.left || p.left >= bb.right) continue;
+            if (!(p.bottom >= bb.top - 2 && p.top < bb.top)) continue;
+            // The box must be between the player and the spike: its top is at/above the spike's
+            // top edge and it reaches down into the spike's span.
+            if (bb.top <= spikeBody.top + 1 && bb.bottom > spikeBody.top) return true;
+        }
+        return false;
+    }
+
+    private updateMagnets(delta: number) {
         if (this.magnetGroup.getLength() === 0) return;
 
         const bodies: Phaser.Physics.Arcade.Body[] = [this.player.Body];
@@ -424,7 +517,6 @@ export class GameScene extends Phaser.Scene {
         };
 
         this.magnetGroup.getChildren().forEach((m: Phaser.GameObjects.GameObject) =>
-            (m as Magnet).update(bodies, blockedAt));
+            (m as Magnet).update(bodies, blockedAt, delta));
     }
-
 }

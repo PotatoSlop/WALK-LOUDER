@@ -71,7 +71,6 @@ export class PlayerController {
             if (player.jump(jumpVol)) this.scene.game.events.emit('sfx-jump-start');
         }
 
-        // Variable jump sound: sustains only while the jump key is held down.
         if (cursors.up.isUp) this.scene.game.events.emit('sfx-jump-stop');
 
         player.applyVocalBoost(jumpVol);
@@ -148,5 +147,4 @@ export class PlayerController {
         return 0; // Automatically returns 0 for static walls/tiles
     }
 
-    
 }

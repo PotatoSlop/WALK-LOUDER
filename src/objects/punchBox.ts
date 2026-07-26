@@ -21,9 +21,9 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
 
     private linkedSwitch: Switch | null = null;
     private prevPowered = false;
-    private punchApplied = false;  // one hit per punch cycle
-    private enabled = true;        // armed state; gates whether it can punch at all
-    private playerInRange = false; // edge-tracking for body-touch triggering
+    private punchedTargets = new Set<any>(); // one hit per target per punch cycle
+    private enabled = true;                   // armed state; gates whether it can punch at all
+    private inRange = new Set<any>();          // edge-tracking for body-touch triggering, per target
 
     private restX: number;  // the fist's start cell (one tile out from the body)
     private restY: number;
@@ -96,7 +96,7 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
         if (this.isPunching || !this.enabled) return;
         this.scene.game.events.emit('sfx-punch');
         this.isPunching = true;
-        this.punchApplied = false;
+        this.punchedTargets.clear();
         // Fist extends one tile past its start; the arm fills the fist's start cell behind it.
         this.fistSprite.setPosition(this.restX + this.dirX * TILE, this.restY + this.dirY * TILE).setVisible(true);
         this.armSprite.setPosition(this.restX, this.restY).setVisible(true);
@@ -110,33 +110,48 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
         this.armSprite.setVisible(false);
     }
 
-    // Single clean impulse per punch via a knockback window — applying it every frame
-    // would fight the player's own input/friction and cause rubber-banding.
-    applyImpulse(player: any) {
-        if (this.punchApplied) return;
-        this.punchApplied = true;
-        player.applyKnockback(this.impulseX, this.impulseY, KNOCKBACK_MS);
+    // Single clean impulse per target per punch via a knockback window — applying it every
+    // frame would fight the target's own input/friction and cause rubber-banding.
+    // The player uses its knockback window; boxes take a plain velocity impulse.
+    applyImpulse(target: any) {
+        if (this.punchedTargets.has(target)) return;
+        this.punchedTargets.add(target);
+        if (typeof target.applyKnockback === 'function') {
+            target.applyKnockback(this.impulseX, this.impulseY, KNOCKBACK_MS);
+        } else {
+            target.Body.setVelocityX(this.impulseX);
+            if (this.impulseY !== 0) target.Body.setVelocityY(this.impulseY);
+        }
     }
 
-    update(player?: any) {
+    update(player?: any, boxes: any[] = []) {
         if (this.linkedSwitch) {
             const powered = this.linkedSwitch.powered;
             if (powered && !this.prevPowered) this.punch();
             this.prevPowered = powered;
         }
 
-        if (!player || !this.enabled) {
-            this.playerInRange = false;
+        if (!this.enabled) {
+            this.inRange.clear();
             return;
         }
 
-        const pb = player.Body;
+        const targets: any[] = [];
+        if (player) targets.push(player);
+        for (const b of boxes) if (b.active) targets.push(b);
 
-        const touchingBody = this.overlapsBody(pb);
-        if (touchingBody && !this.playerInRange) this.punch();
-        this.playerInRange = touchingBody;
+        const nowInRange = new Set<any>();
+        for (const target of targets) {
+            const pb = target.Body;
 
-        if (this.isPunching && this.overlapsSpan(pb)) this.applyImpulse(player);
+            if (this.overlapsBody(pb)) {
+                nowInRange.add(target);
+                if (!this.inRange.has(target)) this.punch();
+            }
+
+            if (this.isPunching && this.overlapsSpan(pb)) this.applyImpulse(target);
+        }
+        this.inRange = nowInRange;
     }
 
     private overlapsBody(pb: { x: number; y: number; width: number; height: number }): boolean {

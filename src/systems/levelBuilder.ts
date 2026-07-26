@@ -90,8 +90,8 @@ export class LevelBuilder {
 
         this.spawnInteractableLayer();
         this.distributePlatforms();
-        this.attachRidersToPlatforms();
         this.spawnHazards();
+        this.attachRidersToPlatforms();
         this.syncTriggerSpikes();
 
         const player = this.spawnPlayer();
@@ -152,8 +152,8 @@ export class LevelBuilder {
     private createInteractable(obj: Phaser.Types.Tilemaps.TiledObject) {
             const type = this.tiled.getObjectType(obj);
             const { cx, cy, w, h } = this.tiled.objectGeometry(obj);
-            // Platforms get their own sprite creation (center origin) — see 'platform' case below
-            const sprite = (obj.gid && type !== 'platform') ? this.tiled.addTileSprite(obj.gid, obj.x!, obj.y!) : null;
+            // Platforms and switches get their own sprite creation (center origin) — see their cases below
+            const sprite = (obj.gid && type !== 'platform' && type !== 'switch') ? this.tiled.addTileSprite(obj.gid, obj.x!, obj.y!) : null;
     
             switch (type) {
                 case 'door': {
@@ -186,11 +186,36 @@ export class LevelBuilder {
                     const switchType = (this.tiled.getTiledProp<string>(obj, 'switchType') ?? 'button') as 'button' | 'lever' | 'oneshot';
                     const sw = new Switch(this.scene, cx, cy, w, h, switchType);
                     sw.setAlpha(0);
-                    if (sprite) {
-                        sw.tileSprite = sprite;
-                        sw.baseFrame = this.tiled.gidFrame(obj.gid!);
+
+                    // Trigger zone = the "lower half" of the tile IN ITS OWN ORIENTATION.
+                    // Unrotated that's the bottom half (centre offset (0, +h/4), size w × h/2);
+                    // the tile's flip/rotation transform then carries that half to the correct
+                    // world face. Since the transform is only ever a multiple of 90° (plus flips),
+                    // the result stays axis-aligned — a ±90° turn just swaps the box dimensions.
+                    // Levers are the exception: they keep the full-tile trigger (default).
+                    if (switchType !== 'lever') {
+                        // Orientation comes from BOTH the gid flip flags and the object's free
+                        // `rotation` field — combine them, then fold into (-180, 180].
+                        const flip = this.tiled.orientationFromFlips(obj);
+                        let angle = (flip.angle + (obj.rotation ?? 0)) % 360;
+                        if (angle < 0) angle += 360;
+                        if (angle > 180) angle -= 360;
+
+                        const rad = angle * Math.PI / 180;
+                        const ly = (h / 4) * flip.scaleY;   // local offset is (0, ly); x component is 0
+                        sw.triggerOffsetX = Math.round(-ly * Math.sin(rad));
+                        sw.triggerOffsetY = Math.round( ly * Math.cos(rad));
+                        const rotated = Math.abs(angle) === 90;
+                        sw.triggerWidth  = rotated ? h / 2 : w;
+                        sw.triggerHeight = rotated ? w : h / 2;
+                    }
+
+                    if (obj.gid) {
+                        const gid = obj.gid & 0x1FFFFFFF;   // strip Tiled flip bits before frame math
+                        sw.tileSprite = this.tiled.addOrientedTileSprite(obj, cx, cy, 0);
+                        sw.baseFrame = this.tiled.gidFrame(gid);
                         // Tile pairs are (off, on) spaced 2 apart. If the placed tile is the "on" variant (gid%4==2), the active offset goes backward.
-                        if ((obj.gid! % 4) === 2) sw.activeFrameOffset = -2;
+                        if ((gid % 4) === 2) sw.activeFrameOffset = -2;
                     }
                     this.switch.add(sw);
                     this.switchById.set(obj.id!, sw);
@@ -270,13 +295,16 @@ export class LevelBuilder {
                     if (!obj.gid && sw) {
                         // Invisible rectangle spike driven by a switch
                         const startEnabled = prop<boolean>('startEnabled') ?? true;
-                        this.spawnSwitchDrivenSpike(cx, cy, w, h, sw, startEnabled);
+                        this.spawnSwitchDrivenSpike(obj, cx, cy, w, h, sw, startEnabled);
                         break;
                     }
                     if (obj.gid) this.tiled.addTileSprite(obj.gid, obj.x!, obj.y!, rot);
                     const spike = new Hazard(this.scene, cx, cy, w, h, true);
                     spike.setAlpha(0);
-                    if (obj.gid) (spike.body as Phaser.Physics.Arcade.StaticBody).setSize(6, h * 0.75);
+                    if (obj.gid) {
+                        const { angle, scaleX, scaleY } = this.tiled.orientationFromFlips(obj);
+                        this.shrinkSpikeHitbox(spike, angle, scaleX, scaleY);
+                    }
                     if (sw) {
                         const startEnabled = prop<boolean>('startEnabled') ?? true;
                         spike.linkSwitch(sw, startEnabled);
@@ -290,10 +318,10 @@ export class LevelBuilder {
                     const sw = linkedSwitch(spikeSwitchId);
                     if (sw) {
                         const startEnabled = prop<boolean>('startEnabled') ?? true;
-                        this.spawnSwitchDrivenSpike(cx, cy, w, h, sw, startEnabled);
+                        this.spawnSwitchDrivenSpike(obj, cx, cy, w, h, sw, startEnabled);
                     } else {
                         this.spawnTriggerSpike(
-                            cx, cy, w, h,
+                            obj, cx, cy, w, h,
                             prop<number>('offTime')     ?? 1000,
                             prop<number>('onTime')      ?? 500,
                             prop<number>('extendTime')  ?? 80
@@ -359,19 +387,78 @@ export class LevelBuilder {
             }
         }
     
-        private spawnTriggerSpike(cx: number, cy: number, w: number, h: number, offTime = 1000, onTime = 500, extendTime = 80) {
+        /**
+         * Shrink a spike hazard's static body so the kill zone sits toward the spike's base,
+         * clear of its tips. Death is a discrete Arcade overlap between the player and the
+         * hazard body — a box or platform between them does NOT shield the player. When the
+         * player fast-falls onto a box that is riding through spikes, the player's body dips
+         * several px past the box's surface for one frame before the collider separates them;
+         * a full-height spike body clips that dip and registers a false spike hit. Pulling the
+         * tip-facing edge inward (and narrowing the sides) removes those false positives while
+         * a genuine landing still buries the player well past the margin.
+         *
+         * Orientation-aware: the tip direction is derived from the tile's flip/rotation so
+         * floor, ceiling, and wall spikes all shrink off the correct (tip-facing) edge.
+         */
+        private shrinkSpikeHitbox(
+            hazard: Hazard,
+            angle: number, scaleX: number, scaleY: number,
+            tipInset = 2, lateralInset = 1
+        ) {
+            const body = hazard.body as Phaser.Physics.Arcade.StaticBody;
+
+            // Tile-local "up" (0,-1) points from base to tip. Apply the same scale-then-rotate
+            // transform the sprite uses, then snap to the dominant world axis.
+            const rad = Phaser.Math.DegToRad(angle);
+            const cos = Math.cos(rad), sin = Math.sin(rad);
+            const localX = 0 * scaleX, localY = -1 * scaleY;
+            const tx = localX * cos - localY * sin;
+            const ty = localX * sin + localY * cos;
+            const horizontal = Math.abs(tx) > Math.abs(ty);
+            const tipX = horizontal ? Math.sign(tx) : 0;
+            const tipY = horizontal ? 0 : Math.sign(ty);
+
+            // Build the shrunken rectangle explicitly from the ORIGINAL bounds. We can't rely on
+            // StaticBody.setSize's centring: it keeps the body anchored to its top-left corner and
+            // trims the removed size off the bottom/right, which would leave the tip edge flush for
+            // floor/left spikes. Instead we anchor the base edge and pull ONLY the tip edge inward
+            // by the full `tipInset`, insetting the two lateral edges by `lateralInset` each.
+            const left = body.position.x, top = body.position.y;
+            const bw = body.width, bh = body.height;
+
+            const newW = bw - (horizontal ? tipInset : 2 * lateralInset);
+            const newH = bh - (horizontal ? 2 * lateralInset : tipInset);
+            // Tip pointing -X/-Y means the tip edge is the left/top, so shift the origin in by the
+            // inset; tip pointing +X/+Y keeps the origin (base edge) put.
+            const newLeft = horizontal ? (tipX < 0 ? left + tipInset : left) : left + lateralInset;
+            const newTop  = horizontal ? top + lateralInset : (tipY < 0 ? top + tipInset : top);
+
+            body.setSize(newW, newH, false);
+            body.position.set(newLeft, newTop);
+            body.updateCenter();
+        }
+
+        private spawnTriggerSpike(obj: Phaser.Types.Tilemaps.TiledObject, cx: number, cy: number, w: number, h: number, offTime = 1000, onTime = 500, extendTime = 80) {
+                const { angle, scaleX, scaleY } = this.tiled.orientationFromFlips(obj);
+                // A ±90° rotation lays the row of spike tiles vertically, so the axis-aligned
+                // hitbox must swap its width/height to match the rotated visual.
+                const rotated = Math.abs(angle) === 90;
+                const bw = rotated ? h : w;
+                const bh = rotated ? w : h;
+
                 const tileCount = Math.max(1, Math.round(w / 8));
-                const container = this.scene.add.container(cx, cy).setDepth(50);
+                const container = this.scene.add.container(cx, cy).setDepth(50).setAngle(angle).setScale(scaleX, scaleY);
                 const tiles: Phaser.GameObjects.Image[] = [];
                 for (let i = 0; i < tileCount; i++) {
                     const t = this.scene.add.image((i - (tileCount - 1) / 2) * 8, 0, 'tileSprites', TRIGGER_SPIKE_FRAMES[0] - 1);
                     container.add(t);
                     tiles.push(t);
                 }
-        
-                const hazard = new Hazard(this.scene, cx, cy, w, h, true);
+
+                const hazard = new Hazard(this.scene, cx, cy, bw, bh, true);
                 hazard.setAlpha(0);
                 hazard.tileSprite = container;
+                this.shrinkSpikeHitbox(hazard, angle, scaleX, scaleY);
                 // Start safe — body disabled until first dangerous frame
                 (hazard.body as any).enable = false;
         
@@ -396,11 +483,17 @@ export class LevelBuilder {
             }
         
             private spawnSwitchDrivenSpike(
+                obj: Phaser.Types.Tilemaps.TiledObject,
                 cx: number, cy: number, w: number, h: number,
                 sw: Switch, startEnabled: boolean
             ) {
+                const { angle, scaleX, scaleY } = this.tiled.orientationFromFlips(obj);
+                const rotated = Math.abs(angle) === 90;
+                const bw = rotated ? h : w;
+                const bh = rotated ? w : h;
+
                 const tileCount = Math.max(1, Math.round(w / 8));
-                const container = this.scene.add.container(cx, cy).setDepth(50);
+                const container = this.scene.add.container(cx, cy).setDepth(50).setAngle(angle).setScale(scaleX, scaleY);
                 const tiles: Phaser.GameObjects.Image[] = [];
                 for (let i = 0; i < tileCount; i++) {
                     const img = this.scene.add.image(
@@ -410,9 +503,11 @@ export class LevelBuilder {
                     container.add(img);
                     tiles.push(img);
                 }
-        
-                const hazard = new Hazard(this.scene, cx, cy, w, h, true);
+
+                const hazard = new Hazard(this.scene, cx, cy, bw, bh, true);
                 hazard.setAlpha(0);
+                hazard.tileSprite = container;
+                this.shrinkSpikeHitbox(hazard, angle, scaleX, scaleY);
                 (hazard.body as any).enable = startEnabled;
         
                 const setFrame = (fi: number) => tiles.forEach(t => t.setFrame(TRIGGER_SPIKE_FRAMES[fi] - 1));
@@ -487,13 +582,27 @@ export class LevelBuilder {
                 const saw = new Hazard( this.scene, cx, cy, 8, 8, !moves, moves ? { x: endX, y: endY } : undefined, moves ? speed : undefined, 'auto');
                 saw.setAlpha(0);
                 saw.isSaw = true;
+
+                // Trim the vertical hitbox by 2px (1px top + 1px bottom) so a player
+                // standing on a pushable box beneath the saw isn't killed by the overhang.
+                if (moves) {
+                    (saw.body as Phaser.Physics.Arcade.Body).setSize(8, 6, true);
+                } else {
+                    const sb = saw.body as Phaser.Physics.Arcade.StaticBody;
+                    sb.setSize(8, 6);
+                    sb.setOffset(0, 1);
+                }
                 saw.tileSprite = container;
         
-                if (linkedSwitchId !== undefined) {
+                // Treat linkedSwitchId=0 as "not linked" (0 is the tile-default sentinel for "none").
+                if (linkedSwitchId) {
                     const sw = this.switchById.get(linkedSwitchId);
                     if (sw) {
-                        saw.linkSwitch(sw);
-                        saw.setEnabled(false);
+                        const startEnabled = this.tiled.getTiledProp<boolean>(obj, 'startEnabled') ?? true;
+                        // Mirror the spike wiring: startEnabled feeds `inverted` so the saw begins
+                        // in its startEnabled state and the switch toggles it the other way.
+                        saw.linkSwitch(sw, startEnabled);
+                        saw.setEnabled(startEnabled);
                     }
                 }
         
@@ -633,8 +742,9 @@ export class LevelBuilder {
         if (platforms.length === 0) return;
 
         // friction 1 = always sticks; MovingPlatform gates boxes below its threshold.
-        const riders: { obj: Switch | Box; friction: number }[] = [
+        const riders: { obj: Switch | Hazard | Box; friction: number }[] = [
             ...this.switch.getChildren().map(s => ({ obj: s as Switch, friction: 1 })),
+            ...this.hazard.getChildren().map(h => ({obj: h as Hazard, friction: 1})),
             ...this.box.getChildren().map(b => ({ obj: b as Box, friction: (b as Box).friction })),
         ];
 
