@@ -9,6 +9,7 @@ import { Switch } from '../objects/switches';
 import { PunchBox } from '../objects/punchBox';
 import { Box } from '../objects/box';
 import { Magnet, MagnetFacing } from '../objects/magnet';
+import { Flip } from '../objects/flip';
 
 //#region CONSTANTS
 
@@ -42,6 +43,10 @@ function makeTriggerSpikeSequence(offTime: number, onTime: number, extendTime: n
 
 export interface BuiltLevel {
     player: Player;
+    // All sprites spawned from the Tiled "Interactables" layer (doors, keys, switches,
+    // platforms, boxes). Held together so the "flip" hazard can counter-invert them as a
+    // group, keeping them looking normal while the rest of the screen goes negative.
+    interactableLayer: Phaser.GameObjects.Layer;
     groups: {
         platform: Phaser.GameObjects.Group, 
         hazard: Phaser.GameObjects.Group, 
@@ -51,7 +56,8 @@ export interface BuiltLevel {
         box: Phaser.GameObjects.Group, 
         punchBox: Phaser.GameObjects.Group,
         bullet: Phaser.GameObjects.Group,
-        magnet: Phaser.GameObjects.Group
+        magnet: Phaser.GameObjects.Group,
+        flip: Phaser.GameObjects.Group
     };
 }
 
@@ -69,12 +75,20 @@ export class LevelBuilder {
     private punchBox!: Phaser.GameObjects.Group;
     private bullet!: Phaser.GameObjects.Group;
     private magnet!: Phaser.GameObjects.Group;
+    private flip!: Phaser.GameObjects.Group;
+    private interactableLayer!: Phaser.GameObjects.Layer;
 
     private objectById = new Map<number, Phaser.Types.Tilemaps.TiledObject>();
     private switchById =  new Map<number, Switch>();
     private doorById = new Map<number, Door>();
     private platformGroups = new Map<number, {platform: MovingPlatform; cx: number; cy: number}[]>();
     private pendingTriggerSpikeStarters: (() => void)[] = [];
+    // Punch boxes are authored as two tiles: a force-less housing (rendered as a plain sprite)
+    // and a fist (the PunchBox object). To let a platform-mounted punch box carry its housing,
+    // we map each housing tile → its sprite, and each fist → the housing object it points at,
+    // then link them in a post-pass once every hazard exists (see attachRidersToPlatforms).
+    private punchBodyByObj = new Map<Phaser.Types.Tilemaps.TiledObject, Phaser.GameObjects.Image>();
+    private punchBoxBodyObj = new Map<PunchBox, Phaser.Types.Tilemaps.TiledObject>();
     
     
 
@@ -98,6 +112,7 @@ export class LevelBuilder {
 
         return {
             player,
+            interactableLayer: this.interactableLayer,
             groups: {
                 platform: this.platform,
                 hazard: this.hazard, 
@@ -107,7 +122,8 @@ export class LevelBuilder {
                 box: this.box, 
                 punchBox: this.punchBox,
                 bullet: this.bullet,
-                magnet: this.magnet
+                magnet: this.magnet,
+                flip: this.flip
             },
         };
     }
@@ -122,6 +138,10 @@ export class LevelBuilder {
         this.punchBox = this.scene.add.group();
         this.box = this.scene.add.group();
         this.magnet = this.scene.add.group();
+        this.flip = this.scene.add.group();
+        // Depth 0 keeps interactable sprites behind the player (depth 100) and hazards
+        // (depth ~50), matching their previous loose-sprite ordering.
+        this.interactableLayer = this.scene.add.layer().setDepth(0);
     }
 
     private getObjectLayer(name: string): Phaser.Tilemaps.ObjectLayer | null {
@@ -154,7 +174,11 @@ export class LevelBuilder {
             const { cx, cy, w, h } = this.tiled.objectGeometry(obj);
             // Platforms and switches get their own sprite creation (center origin) — see their cases below
             const sprite = (obj.gid && type !== 'platform' && type !== 'switch') ? this.tiled.addTileSprite(obj.gid, obj.x!, obj.y!) : null;
-    
+            // Group the visual with the other interactables so the flip hazard can exclude it
+            // from the screen invert (doors, keys, boxes, door_tops all flow through `sprite`;
+            // switches and platforms are added in their own cases below).
+            if (sprite) this.interactableLayer.add(sprite);
+
             switch (type) {
                 case 'door': {
                     const targetLevel = this.tiled.getTiledProp<string>(obj, 'targetLevel') ?? '';
@@ -185,6 +209,7 @@ export class LevelBuilder {
                 case 'switch': {
                     const switchType = (this.tiled.getTiledProp<string>(obj, 'switchType') ?? 'button') as 'button' | 'lever' | 'oneshot';
                     const sw = new Switch(this.scene, cx, cy, w, h, switchType);
+                    sw.flippedVertical = !!obj.flippedVertical;
                     sw.setAlpha(0);
 
                     // Trigger zone = the "lower half" of the tile IN ITS OWN ORIENTATION.
@@ -213,6 +238,7 @@ export class LevelBuilder {
                     if (obj.gid) {
                         const gid = obj.gid & 0x1FFFFFFF;   // strip Tiled flip bits before frame math
                         sw.tileSprite = this.tiled.addOrientedTileSprite(obj, cx, cy, 0);
+                        this.interactableLayer.add(sw.tileSprite);
                         sw.baseFrame = this.tiled.gidFrame(gid);
                         // Tile pairs are (off, on) spaced 2 apart. If the placed tile is the "on" variant (gid%4==2), the active offset goes backward.
                         if ((gid % 4) === 2) sw.activeFrameOffset = -2;
@@ -248,6 +274,7 @@ export class LevelBuilder {
                         const img = this.scene.add.image(cx, cy, 'tileSprites', this.tiled.gidFrame(obj.gid & 0x1FFFFFFF));
                         img.setOrigin(0.5, 0.5);
                         platform.tileSprite = img;
+                        this.interactableLayer.add(img);
                     }
                     if (sw) platform.linkSwitch(sw);
                     this.platform.add(platform);
@@ -300,6 +327,7 @@ export class LevelBuilder {
                     }
                     if (obj.gid) this.tiled.addTileSprite(obj.gid, obj.x!, obj.y!, rot);
                     const spike = new Hazard(this.scene, cx, cy, w, h, true);
+                    spike.flippedVertical = !!obj.flippedVertical;
                     spike.setAlpha(0);
                     if (obj.gid) {
                         const { angle, scaleX, scaleY } = this.tiled.orientationFromFlips(obj);
@@ -338,6 +366,9 @@ export class LevelBuilder {
                 case 'magnet':
                     this.spawnMagnet(obj, cx, cy);
                     break;
+                case 'flip':
+                    this.spawnFlip(obj, cx, cy, w, h);
+                    break;
                 case 'punch_box': {
                     const forceX = prop<number>('forceX');
                     const forceY = prop<number>('forceY');
@@ -346,7 +377,8 @@ export class LevelBuilder {
                     // flip flags, and let the fist object (which has the force props) own the
                     // punch logic and derive the body cell for its trigger zone.
                     if (forceX === undefined && forceY === undefined) {
-                        this.tiled.addOrientedTileSprite(obj, cx, cy, 48);
+                        const bodySprite = this.tiled.addOrientedTileSprite(obj, cx, cy, 48);
+                        this.punchBodyByObj.set(obj, bodySprite);
                         break;
                     }
                     const swId   = prop<number>('linkedSwitchId');
@@ -359,6 +391,7 @@ export class LevelBuilder {
                     // nearest body tile (a punch_box object with no force props) and snap the
                     // body→fist offset to its dominant axis.
                     let dirX = 0, dirY = 0, best = Infinity;
+                    let bodyObj: Phaser.Types.Tilemaps.TiledObject | null = null;
                     for (const other of this.objectById.values()) {
                         if (other === obj || this.tiled.getObjectType(other) !== 'punch_box') continue;
                         if (this.tiled.getTiledProp(other, 'forceX') !== undefined ||
@@ -368,6 +401,7 @@ export class LevelBuilder {
                         const dist = Math.hypot(dx, dy);
                         if (dist < best) {
                             best = dist;
+                            bodyObj = other;
                             if (Math.abs(dx) >= Math.abs(dy)) { dirX = Math.sign(dx); dirY = 0; }
                             else                               { dirX = 0; dirY = Math.sign(dy); }
                         }
@@ -380,7 +414,9 @@ export class LevelBuilder {
                     }
 
                     const pb = new PunchBox(this.scene, cx, cy, w, h, fistFrame, dirX, dirY, forceX ?? -200, forceY ?? 0, startEnabled);
+                    pb.flippedVertical = !!obj.flippedVertical;
                     if (sw) pb.linkSwitch(sw);
+                    if (bodyObj) this.punchBoxBodyObj.set(pb, bodyObj);
                     this.punchBox.add(pb);
                     break;
                 }
@@ -456,6 +492,7 @@ export class LevelBuilder {
                 }
 
                 const hazard = new Hazard(this.scene, cx, cy, bw, bh, true);
+                hazard.flippedVertical = !!obj.flippedVertical;
                 hazard.setAlpha(0);
                 hazard.tileSprite = container;
                 this.shrinkSpikeHitbox(hazard, angle, scaleX, scaleY);
@@ -505,6 +542,7 @@ export class LevelBuilder {
                 }
 
                 const hazard = new Hazard(this.scene, cx, cy, bw, bh, true);
+                hazard.flippedVertical = !!obj.flippedVertical;
                 hazard.setAlpha(0);
                 hazard.tileSprite = container;
                 this.shrinkSpikeHitbox(hazard, angle, scaleX, scaleY);
@@ -682,6 +720,13 @@ export class LevelBuilder {
                 });
             }
 
+            private spawnFlip(obj: Phaser.Types.Tilemaps.TiledObject, cx: number, cy: number, w: number, h: number) {
+                const flip = new Flip(this.scene, cx, cy, w, h);
+                if (obj.gid) flip.tileSprite = this.tiled.addOrientedTileSprite(obj, cx, cy, 48);
+                flip.startAnim();
+                this.flip.add(flip);
+            }
+
             private spawnMagnet(obj: Phaser.Types.Tilemaps.TiledObject, cx: number, cy: number) {
                 const { w, h } = this.tiled.objectGeometry(obj);
 
@@ -738,27 +783,41 @@ export class LevelBuilder {
     // Switches have no physics body (they can only move via syncPosition), and horizontally moving
     // platforms don't carry bodies through Arcade friction — so riders must be attached explicitly.
     private attachRidersToPlatforms() {
+        // Now that every hazard exists, hand each platform-riding punch box its housing sprite
+        // so syncPosition can carry the whole assembly (fist + arm + housing) together.
+        for (const [pb, bodyObj] of this.punchBoxBodyObj) {
+            pb.bodySprite = this.punchBodyByObj.get(bodyObj) ?? null;
+        }
+
         const platforms = this.platform.getChildren() as MovingPlatform[];
         if (platforms.length === 0) return;
 
         // friction 1 = always sticks; MovingPlatform gates boxes below its threshold.
-        const riders: { obj: Switch | Hazard | Box; friction: number }[] = [
-            ...this.switch.getChildren().map(s => ({ obj: s as Switch, friction: 1 })),
-            ...this.hazard.getChildren().map(h => ({obj: h as Hazard, friction: 1})),
-            ...this.box.getChildren().map(b => ({ obj: b as Box, friction: (b as Box).friction })),
+        // flippedVertical marks a rider authored upside-down to hang from a platform's UNDERSIDE.
+        // Switches, spikes and punch boxes can all be ceiling-mounted; boxes rest on top via gravity.
+        const riders: { obj: Switch | Hazard | Box | PunchBox; friction: number; flippedVertical: boolean }[] = [
+            ...this.switch.getChildren().map(s => ({ obj: s as Switch, friction: 1, flippedVertical: (s as Switch).flippedVertical })),
+            ...this.hazard.getChildren().map(h => ({ obj: h as Hazard, friction: 1, flippedVertical: (h as Hazard).flippedVertical })),
+            ...this.box.getChildren().map(b => ({ obj: b as Box, friction: (b as Box).friction, flippedVertical: false })),
+            ...this.punchBox.getChildren().map(p => ({ obj: p as PunchBox, friction: 1, flippedVertical: (p as PunchBox).flippedVertical })),
         ];
 
-        for (const { obj, friction } of riders) {
+        for (const { obj, friction, flippedVertical } of riders) {
             const rLeft   = obj.x - obj.width / 2;
             const rRight  = obj.x + obj.width / 2;
+            const rTop    = obj.y - obj.height / 2;
             const rBottom = obj.y + obj.height / 2;
 
             let best: MovingPlatform | null = null;
             let bestOverlap = 0;
             for (const p of platforms) {
-                const pTop = p.y - p.height / 2;
-                // Rider must be sitting on the platform's top edge (small tolerance).
-                if (Math.abs(rBottom - pTop) > 2) continue;
+                const pTop    = p.y - p.height / 2;
+                const pBottom = p.y + p.height / 2;
+                // Rider rests on the platform's TOP edge, OR — only when authored upside-down
+                // (vertical flip) to signal intent — hangs from its BOTTOM edge. Small tolerance.
+                const onTop    = Math.abs(rBottom - pTop) <= 2;
+                const onBottom = flippedVertical && Math.abs(rTop - pBottom) <= 2;
+                if (!onTop && !onBottom) continue;
                 const overlap = Math.min(rRight, p.x + p.width / 2) - Math.max(rLeft, p.x - p.width / 2);
                 if (overlap > bestOverlap) { bestOverlap = overlap; best = p; }
             }

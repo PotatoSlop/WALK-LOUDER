@@ -14,7 +14,8 @@ import { getSetting } from '../systems/settingsManager';
 import { LEVEL_NAMES } from '../data/levels';
 import { TiledContext } from '../systems/tiled';
 import { LevelBuilder } from '../systems/levelBuilder';
-import { setupCameraFX } from '../systems/cameraFX';
+import { setupCameraFX, CameraFXHandle } from '../systems/cameraFX';
+import { Flip } from '../objects/flip';
 import { PlayerController } from '../systems/playerController';
 import { GameState, GAMEMODE_CHANGED, GameMode } from '../systems/gameState';
 import { SoundManager } from '../systems/soundFX';
@@ -39,6 +40,7 @@ export class GameScene extends Phaser.Scene {
     punchBoxGroup: any;
     boxGroup: any;
     magnetGroup: any;
+    flipGroup: any;
     platformLayer: any;
     mic: any;
     escKey: any;
@@ -54,6 +56,14 @@ export class GameScene extends Phaser.Scene {
     private debugKey!: Phaser.Input.Keyboard.Key;
     private playerController!: PlayerController;
 
+    // "Flip" hazard state: when true the screen is colour-inverted and the mic mapping is
+    // reversed (loud = slow/low jump). Lives for one life — cleared on death and on level change.
+    private cameraFX!: CameraFXHandle;
+    private flipped: boolean = false;
+    // Counter-invert filter on the interactables layer — cancels the camera-wide invert so
+    // doors/keys/switches/platforms/boxes stay their normal colours while flip is active.
+    private interactableInvert!: Phaser.Filters.ColorMatrix;
+
     // Previous frame's sustained-sound state — loops toggle only on transitions.
     private platformMoving: boolean = false;
     private magnetPulling: boolean = false;
@@ -64,7 +74,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     init(data: { levelId?: string }) {
-        this.currentLevelId = data.levelId ?? 'level23';
+        this.currentLevelId = data.levelId ?? 'level01';
         this.transitioning = false;
         this.deathCt = this.game.registry.get('deathCt') ?? 0;
 
@@ -100,6 +110,9 @@ export class GameScene extends Phaser.Scene {
         this.platformMoving = false;
         this.magnetPulling = false;
         this.sawTravelling = false;
+        // Flip is per-life; the scene instance is reused across restarts, so clear it here.
+        // The camera invert filter is rebuilt fresh (inactive) below by setupCameraFX.
+        this.flipped = false;
 
         // Tilemap
         const map = this.make.tilemap({ key: this.currentLevelId });
@@ -116,11 +129,15 @@ export class GameScene extends Phaser.Scene {
         this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
         this.cameras.main.setZoom(CAMERA_ZOOM);
 
-        setupCameraFX(this);
+        this.cameraFX = setupCameraFX(this);
 
         this.events.on('playerDeath', () => {
             if (this.transitioning) return;
             this.transitioning = true;
+            // Call off the flip effect the instant the player dies so the death (particles,
+            // frozen world) reads in the normal, un-inverted colour scheme — not on the later
+            // level reset.
+            this.setFlipped(false);
             this.deathCt++;
             this.game.registry.set('deathCt', this.deathCt);
 
@@ -152,14 +169,32 @@ export class GameScene extends Phaser.Scene {
         this.punchBoxGroup = level.groups.punchBox;
         this.bulletGroup   = level.groups.bullet;
         this.magnetGroup   = level.groups.magnet;
+        this.flipGroup     = level.groups.flip;
+
+        // Give the interactables layer its own colour-invert filter, initially off. When flip
+        // turns on, both this and the camera invert activate — the double negative leaves the
+        // interactable sprites looking normal while everything else on screen goes negative.
+        level.interactableLayer.enableFilters();
+        this.interactableInvert = level.interactableLayer.filters!.internal.addColorMatrix();
+        this.interactableInvert.colorMatrix.negative();
+        this.interactableInvert.active = false;
 
         this.playerController = new PlayerController(this, this.player, this.platformGroup);
 
         // Player scene-side wiring (controls hint + fall-out-of-world death)
         this.buildControlsHint();
         this.player.Body.onWorldBounds = true;
-        this.physics.world.on('worldbounds', (body: Phaser.Physics.Arcade.Body, _up: boolean, down: boolean) => {
-            if (body.gameObject === this.player && down) this.player.death();
+        this.physics.world.on('worldbounds', (body: Phaser.Physics.Arcade.Body) => {
+            if (body.gameObject !== this.player) return;
+            // Only the bottom edge is lethal — every other border is a harmless wall.
+            // Test the body's real position instead of the event's `down` flag: the world
+            // runs a fixed 60fps step, and on frames with multiple substeps only the first
+            // resets collision flags. A stale `blocked.down` (from resting on the ground)
+            // then leaks into later substeps, so a grounded player pinned against a side
+            // wall — e.g. after a punch-box knockback — was misread as "fell out" and killed.
+            // The position check can't go stale: checkWorldBounds clamps body.bottom to the
+            // world bottom on a real bottom-hit, while a side-wall hit leaves it well above.
+            if (body.bottom >= this.physics.world.bounds.bottom) this.player.death();
         });
 
         // Collisions
@@ -222,6 +257,11 @@ export class GameScene extends Phaser.Scene {
         // The magnet kills on contact with its own tile — a plain overlap (disabled magnets have
         // their body turned off, so this won't fire while unpowered).
         this.physics.add.overlap(this.player, this.magnetGroup, (p) => (p as Player).death());
+
+        // Flip is a collectible, but — like keys — it is collected via a plain AABB test in
+        // update() (see flipGroup loop), NOT a physics overlap. A physics overlap sets the
+        // player's touching flags on contact (even overlap-only), which would spuriously mark
+        // the player grounded and hand out an extra jump when they run onto a flip tile.
 
         // Keys are collected via a plain AABB test in update() (see itemGroup loop) — no
         // physics overlap, which would corrupt the player's ground/jump state on contact.
@@ -355,14 +395,33 @@ export class GameScene extends Phaser.Scene {
             .setVisible(this.currentLevelId === 'level01');
     }
 
+    // Turn the "flip" effect on/off in one place: the screen-wide colour invert (camera),
+    // the DOM volume-bar/mic invert (via the global 'flip-changed' event), and the flag the
+    // update loop reads to reverse the mic→movement mapping.
+    private setFlipped(on: boolean) {
+        if (this.flipped === on) return;
+        this.flipped = on;
+        this.cameraFX.setInverted(on);
+        this.interactableInvert.active = on;
+        this.game.events.emit('flip-changed', on);
+    }
+
     switchLevel(levelId: string) {
         this.scene.restart({ levelId });
     }
 
     // Game loop
     update(_time: number, delta: number) {
-        const vol = this.debugKey.isDown ? 0.8 : (this.mic?.smoothedVolume() ?? 0);
-        const jumpVol = this.debugKey.isDown ? 0.8 : (this.mic?.getNormalizedVolume() ?? vol);
+        let vol = this.debugKey.isDown ? 0.8 : (this.mic?.smoothedVolume() ?? 0);
+        let jumpVol = this.debugKey.isDown ? 0.8 : (this.mic?.getNormalizedVolume() ?? vol);
+
+        // Flip reverses the mic mapping: loud becomes the new quiet, so the louder the player
+        // is the SLOWER they move and the LOWER they jump. Both signals are clamped to [0,1],
+        // so 1 - v keeps them in range.
+        if (this.flipped) {
+            vol = 1 - vol;
+            jumpVol = 1 - jumpVol;
+        }
 
         if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
             this.game.events.emit('sfx-pause');
@@ -380,6 +439,21 @@ export class GameScene extends Phaser.Scene {
                 this.game.events.emit('item-collect');
                 key.tileSprite?.destroy();
                 key.destroy();
+            }
+        }
+
+        // Flip hazards toggle the inversion: the first collected flips the game, a second
+        // flips it back, and so on. setFlipped drives all the derived state (camera invert,
+        // interactable counter-invert, mic mapping) off this single boolean, so !this.flipped
+        // is a complete toggle. AABB test (not a physics overlap) so contact never touches the
+        // player's ground/jump state — see the note where the other overlaps are registered.
+        for (const item of [...this.flipGroup.getChildren()]) {
+            const flip = item as Flip;
+            if (!flip.active) continue;
+            if (bodyOverlapsSensor(this.player.Body, flip)) {
+                flip.collect();
+                this.game.events.emit('item-collect');
+                this.setFlipped(!this.flipped);
             }
         }
 

@@ -5,8 +5,21 @@ import { getSetting } from './settingsManager';
 // saturation, and vignette — plus CSS scanlines on the canvas container.
 // Also wires the live `setting-changed` listener so settings-menu toggles
 // update the running scene.
-export function setupCameraFX(scene: Phaser.Scene): void {
+export interface CameraFXHandle {
+    // Toggle the full-screen colour invert used by the "flip" hazard.
+    setInverted(on: boolean): void;
+}
+
+export function setupCameraFX(scene: Phaser.Scene): CameraFXHandle {
     const cam = scene.cameras.main;
+
+    // Full-screen colour invert for the "flip" hazard. Added FIRST so the remaining lens
+    // effects (bloom, vignette) operate on the final, post-invert image — and so the
+    // per-object counter-invert on interactable sprites (see gameScene) cancels cleanly,
+    // leaving them looking normal without spurious bloom halos. Starts inactive.
+    const invertFilter = cam.filters!.external.addColorMatrix();
+    invertFilter.colorMatrix.negative();
+    invertFilter.active = false;
 
     Phaser.Actions.AddEffectBloom(cam, {
         threshold: 0.3,    // only pixels brighter than this glow (pixel art smears fast at lower values)
@@ -39,4 +52,8 @@ export function setupCameraFX(scene: Phaser.Scene): void {
             scene.game.canvas.parentElement?.classList.toggle('scanlines-enabled', value);
         }
     });
+
+    return {
+        setInverted: (on: boolean) => { invertFilter.active = on; },
+    };
 }

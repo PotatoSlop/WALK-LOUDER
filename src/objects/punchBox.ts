@@ -15,6 +15,13 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
     dirX: number; // cardinal punch direction, body → fist
     dirY: number;
 
+    // Set by the level builder from the Tiled vertical-flip flag; signals intent to stick
+    // to the UNDERSIDE of a moving platform (see MovingPlatform / attachRidersToPlatforms).
+    flippedVertical = false;
+    // The separate, force-less housing tile rendered by the level builder. Owned here only so
+    // syncPosition can carry it along when this punch box rides a moving platform.
+    bodySprite: Phaser.GameObjects.Image | null = null;
+
     // Knockback impulse: force magnitude signed along the punch direction, cross-axis as feel offset.
     private impulseX: number;
     private impulseY: number;
@@ -90,6 +97,21 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
     setEnabled(enabled: boolean) {
         this.enabled = enabled;
         if (!enabled) this.retract();
+    }
+
+    // Ride a moving platform: shift the sensor rect, the fist/arm visuals, the housing
+    // sprite, and every punch anchor (rest + body cell) by the same delta so the whole
+    // assembly — and the geometry the trigger/impulse are computed from — tracks the platform.
+    syncPosition(x: number, y: number) {
+        const dx = x - this.x;
+        const dy = y - this.y;
+        if (dx === 0 && dy === 0) return;
+        this.setPosition(x, y);
+        this.restX += dx; this.restY += dy;
+        this.bodyX += dx; this.bodyY += dy;
+        this.fistSprite.x += dx; this.fistSprite.y += dy;
+        this.armSprite.x += dx; this.armSprite.y += dy;
+        if (this.bodySprite) { this.bodySprite.x += dx; this.bodySprite.y += dy; }
     }
 
     punch() {

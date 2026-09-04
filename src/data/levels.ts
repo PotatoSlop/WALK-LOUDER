@@ -20,7 +20,10 @@ export const LEVEL_NAMES: Record<string, string> = {
     level19: 'Push Comes to Shove',
     level20: 'Little by Little',
     level21: 'Pummel Rats',
-    level22: 'Schoolyard Bully'
+    level22: 'Schoolyard Bully',
+    level23: 'No Tortoise, Just Hare',
+    level24: 'Quiet Escalator Ride',
+    level25: 'Hat Roll'
 
 };
  

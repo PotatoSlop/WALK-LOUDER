@@ -14,6 +14,10 @@ export class Hazard extends Phaser.GameObjects.Rectangle {
     direction: 'left' | 'right' | null = null;
     BULLET_SPEED = 100;
 
+    // Set by the level builder from the Tiled vertical-flip flag; signals intent to stick
+    // to the UNDERSIDE of a moving platform (see attachRidersToPlatforms).
+    flippedVertical = false;
+
     private startPos: Vec2;
     private endPos: Vec2;
     private speed: number;

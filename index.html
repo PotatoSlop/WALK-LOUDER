@@ -45,14 +45,17 @@
       }
 
       .title {
-        position: absolute;
-        top: 5%;
-        left: 50%;
+        position: fixed;
+        top: 0;
+        left: 0;
         transform: translate(-50%, -50%);
+        transform-origin: center center;
         color: #fff;
         font-size: 2rem;
         text-align: center;
-
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 30;
       }
     </style>
   </head>

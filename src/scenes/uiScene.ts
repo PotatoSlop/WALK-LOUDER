@@ -46,7 +46,7 @@ export class UIScene extends Phaser.Scene {
 
     private showLevel(level: string) {
         if (!level) return;
-        document.fonts.load('36px "Press Start 2P"').then(() => {
+        document.fonts.load('30px "Press Start 2P"').then(() => {
             if (this.levelText?.scene?.sys.isActive()) {
                 this.levelText.setText(level).setVisible(true);
             }
@@ -116,17 +116,17 @@ export class UIScene extends Phaser.Scene {
     // level display 
 
     private buildLevelDisplay() {
-        this.levelText = this.add.text(24, 24, '', {
+        this.levelText = this.add.text(24, 14, '', {
                 fontFamily:      '"Press Start 2P"',
-                fontSize:        '36px',
+                fontSize:        '30px',
                 color:           '#c0c0c0',
                 stroke:          '#000000',
                 strokeThickness: 2,
-                padding:         { top: 6 },
+                padding:         { top: 4 },
             })
             .setVisible(false);
 
-        this.levelNameText = this.add.text(24, 66, '', {
+        this.levelNameText = this.add.text(24, 52, '', {
                 fontFamily:      '"Press Start 2P"',
                 fontSize:        '12px',
                 color:           '#c0c0c0',
@@ -136,16 +136,17 @@ export class UIScene extends Phaser.Scene {
             .setVisible(false);
     }
 
-    // run timer — top-center, stays centered in the vertical 9:16 clip frame
+    // run timer — top-center; top edge aligned with the level number, sized to match
+    // the small level-name subtitle.
 
     private buildRunTimer() {
-        this.timerText = this.add.text(this.scale.width / 2, 24, '', {
+        this.timerText = this.add.text(this.scale.width / 2, 14, '', {
                 fontFamily:      '"Press Start 2P"',
-                fontSize:        '24px',
+                fontSize:        '12px',
                 color:           '#c0c0c0',
                 stroke:          '#000000',
                 strokeThickness: 2,
-                padding:         { top: 12 },
+                padding:         { top: 4 },
             })
             .setOrigin(0.5, 0)
             .setVisible(false);

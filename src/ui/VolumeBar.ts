@@ -31,6 +31,7 @@ export class VolumeBar {
     private mic:       micInput | null;
     private scene:     Phaser.Scene;
     private atPeak:    boolean = false;
+    private flipped:   boolean = false;
 
     constructor(scene: Phaser.Scene, mic: micInput | null) {
         this.scene = scene;
@@ -125,17 +126,28 @@ export class VolumeBar {
             this.displayedVol = Math.max(target, this.displayedVol * Math.pow(0.5, delta / DECAY_HALFLIFE_MS));
         }
 
-        const activeCount = Math.round(this.displayedVol * SEGMENT_COUNT);
+        // The number of lit segments tracks loudness. The "flip" hazard inverts the *level*
+        // (not the colours): the bar defaults to full and louder sounds DRAIN it instead of
+        // filling it — so lit = SEGMENT_COUNT - loud while flipped.
+        const loudCount   = Math.round(this.displayedVol * SEGMENT_COUNT);
+        const activeCount = this.flipped ? SEGMENT_COUNT - loudCount : loudCount;
         for (let i = 0; i < this.segments.length; i++) {
             this.segments[i].style.opacity = i < activeCount ? '1' : '0.12';
         }
 
-        // Mic icon: white normally, red when all segments are lit (peak)
-        const peak = activeCount >= SEGMENT_COUNT;
+        // Mic icon: white normally, red at peak loudness. Keyed off actual loudness (not the
+        // lit count) so it still means "you're loud" while the flipped bar reads inverted.
+        const peak = loudCount >= SEGMENT_COUNT;
         if (peak !== this.atPeak) {
             this.atPeak = peak;
             this.micIconEl.style.filter = peak ? FILTER_RED : FILTER_WHITE;
         }
+    }
+
+    // While the "flip" hazard is active the bar drains instead of fills (see update()). The
+    // mic UI colours are left untouched — only the fill level is inverted.
+    setFlipped(on: boolean) {
+        this.flipped = on;
     }
 
     destroy() {

@@ -12,6 +12,10 @@ export class Switch extends Phaser.GameObjects.Rectangle {
     triggerWidth: number;
     triggerHeight: number;
 
+    // Set by the level builder from the Tiled vertical-flip flag; a ceiling-mounted (upside-down)
+    // switch uses this to stick to the UNDERSIDE of a moving platform (see attachRidersToPlatforms).
+    flippedVertical = false;
+
     private touchingThisFrame: boolean = false;
     private wasTouching: boolean = false;
     private framesWithoutTouch: number = Switch.EXIT_GRACE_FRAMES;

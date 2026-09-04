@@ -21,10 +21,19 @@ export class VolumeBarScene extends Phaser.Scene {
         const mic = this.game.registry.get('mic') as micInput | null ?? null;
         if (mic) this.volumeBar.setMic(mic);
 
+        // The "flip" hazard toggles the screen-wide colour invert; mirror it onto the DOM
+        // volume bar + mic icon (which the camera filter can't reach).
+        this.game.events.on('flip-changed', this.onFlipChanged, this);
+
         this.events.once('shutdown', () => {
             this.game.registry.events.off('changedata-mic', undefined, this);
+            this.game.events.off('flip-changed', this.onFlipChanged, this);
             this.volumeBar?.destroy();
         });
+    }
+
+    private onFlipChanged(on: boolean) {
+        this.volumeBar?.setFlipped(on);
     }
 
     get displayedVol(): number {

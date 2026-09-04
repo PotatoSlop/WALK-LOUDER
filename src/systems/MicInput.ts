@@ -56,8 +56,14 @@ export class micInput {
     }
 
     private async collectSamples(): Promise<number[]> { // Gets array of samples collected over interval
+        // Bound the loop by wall-clock, not a fixed iteration count. setTimeout(16ms) drifts
+        // (and drifts badly when the main thread is busy), so a fixed count of ~187 iterations
+        // routinely overruns 3s — the countdown reads 0.0 while the loop is still going, which
+        // is the visible "freeze" before the phase switches. Ending on performance.now keeps
+        // the loop in lockstep with the displayed countdown.
         const samples: number[] = [];
-        for (let i = 0; i < SAMPLE_DURATION / SAMPLE_INTERVAL; i++) {
+        const start = performance.now();
+        while (performance.now() - start < SAMPLE_DURATION) {
             samples.push(this.getVolume());
             await new Promise(resolve => setTimeout(resolve, SAMPLE_INTERVAL));
         }
@@ -96,6 +102,17 @@ export class micInput {
         const sorted = samples.sort((a,b) => b - a);
         this.noiseCeiling = sorted[Math.floor(samples.length * PEAK_SAMPLE_SIZE)];
         this.calibrationPhase = 'done';
+    }
+
+    // Release the microphone and audio graph. Browsers cap the number of live AudioContexts
+    // (~6) and getUserMedia streams per page; leaking them across teardown/HMR reloads starves
+    // the audio subsystem and degrades the whole browser, not just the game.
+    destroy(): void {
+        this.stream?.getTracks().forEach(track => track.stop());
+        this.stream = null;
+        if (this.audioContext.state !== 'closed') {
+            this.audioContext.close().catch(() => { /* already closing */ });
+        }
     }
 }
 
