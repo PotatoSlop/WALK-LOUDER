@@ -1,0 +1,849 @@
+import Phaser from 'phaser';
+import { Player } from '../objects/player';
+import { TiledContext } from './tiled';
+import { Door } from '../objects/door';
+import { Hazard } from '../objects/hazards';
+import { Key } from '../objects/key';
+import { MovingPlatform } from '../objects/movingPlatform';
+import { Switch } from '../objects/switches';
+import { PunchBox } from '../objects/punchBox';
+import { Box } from '../objects/box';
+import { Magnet, MagnetFacing } from '../objects/magnet';
+import { Flip } from '../objects/flip';
+
+//#region CONSTANTS
+
+const DOOR_UNLOCKED_GID = 376;      // door body without handle (unlocked visual)
+const DOOR_UNLOCKED_TOP_GID = 356;  // top piece paired with the unlocked body
+
+// Saw animation frames — each sub-array is one anim frame with 3 tile GIDs [left, center, right]
+const SAW_ANIM_FRAMES = [
+    [93, 94, 95],
+    [113, 114, 115],
+    [133, 134, 135],
+];
+
+// Turret tiles — 2×2 grid [topLeft, topRight, bottomLeft, bottomRight]
+const TURRET_TILE_GIDS = [36, 37, 56, 57];
+
+// Trigger spike animation frames — retracted (92) → fully extended (152)
+const TRIGGER_SPIKE_FRAMES = [92, 112, 132, 152];
+
+function makeTriggerSpikeSequence(offTime: number, onTime: number, extendTime: number): [number, number, boolean][] {
+    return [
+        [0, offTime,    false],
+        [1, extendTime, false],
+        [2, extendTime, true ],
+        [3, onTime,     true ],
+        [2, extendTime, true ],
+        [1, extendTime, false],
+    ];
+}
+//#endregion
+
+export interface BuiltLevel {
+    player: Player;
+    // All sprites spawned from the Tiled "Interactables" layer (doors, keys, switches,
+    // platforms, boxes). Held together so the "flip" hazard can counter-invert them as a
+    // group, keeping them looking normal while the rest of the screen goes negative.
+    interactableLayer: Phaser.GameObjects.Layer;
+    groups: {
+        platform: Phaser.GameObjects.Group, 
+        hazard: Phaser.GameObjects.Group, 
+        door: Phaser.GameObjects.Group, 
+        item: Phaser.GameObjects.Group, 
+        switch: Phaser.GameObjects.Group, 
+        box: Phaser.GameObjects.Group, 
+        punchBox: Phaser.GameObjects.Group,
+        bullet: Phaser.GameObjects.Group,
+        magnet: Phaser.GameObjects.Group,
+        flip: Phaser.GameObjects.Group
+    };
+}
+
+export class LevelBuilder {
+    private scene: Phaser.Scene;
+    private map: Phaser.Tilemaps.Tilemap;
+    private tiled: TiledContext;
+
+    private platform!: Phaser.GameObjects.Group;
+    private hazard!: Phaser.GameObjects.Group; 
+    private door!: Phaser.GameObjects.Group;
+    private item!: Phaser.GameObjects.Group; 
+    private switch!: Phaser.GameObjects.Group; 
+    private box!: Phaser.GameObjects.Group;
+    private punchBox!: Phaser.GameObjects.Group;
+    private bullet!: Phaser.GameObjects.Group;
+    private magnet!: Phaser.GameObjects.Group;
+    private flip!: Phaser.GameObjects.Group;
+    private interactableLayer!: Phaser.GameObjects.Layer;
+
+    private objectById = new Map<number, Phaser.Types.Tilemaps.TiledObject>();
+    private switchById =  new Map<number, Switch>();
+    private doorById = new Map<number, Door>();
+    private platformGroups = new Map<number, {platform: MovingPlatform; cx: number; cy: number}[]>();
+    private pendingTriggerSpikeStarters: (() => void)[] = [];
+    // Punch boxes are authored as two tiles: a force-less housing (rendered as a plain sprite)
+    // and a fist (the PunchBox object). To let a platform-mounted punch box carry its housing,
+    // we map each housing tile → its sprite, and each fist → the housing object it points at,
+    // then link them in a post-pass once every hazard exists (see attachRidersToPlatforms).
+    private punchBodyByObj = new Map<Phaser.Types.Tilemaps.TiledObject, Phaser.GameObjects.Image>();
+    private punchBoxBodyObj = new Map<PunchBox, Phaser.Types.Tilemaps.TiledObject>();
+    
+    
+
+    constructor(scene: Phaser.Scene, map: Phaser.Tilemaps.Tilemap, tiled: TiledContext) {
+        this.scene = scene;
+        this.map = map;
+        this.tiled = tiled;
+    }
+
+    build(): BuiltLevel {
+        this.createGroups();
+        this.indexObjects();
+
+        this.spawnInteractableLayer();
+        this.distributePlatforms();
+        this.spawnHazards();
+        this.attachRidersToPlatforms();
+        this.syncTriggerSpikes();
+
+        const player = this.spawnPlayer();
+
+        return {
+            player,
+            interactableLayer: this.interactableLayer,
+            groups: {
+                platform: this.platform,
+                hazard: this.hazard, 
+                door: this.door, 
+                item: this.item, 
+                switch: this.switch, 
+                box: this.box, 
+                punchBox: this.punchBox,
+                bullet: this.bullet,
+                magnet: this.magnet,
+                flip: this.flip
+            },
+        };
+    }
+
+    private createGroups() {
+        this.hazard = this.scene.add.group();
+        this.door = this.scene.add.group();
+        this.item = this.scene.add.group();
+        this.switch = this.scene.add.group();
+        this.platform =this.scene.add.group();
+        this.bullet = this.scene.add.group();
+        this.punchBox = this.scene.add.group();
+        this.box = this.scene.add.group();
+        this.magnet = this.scene.add.group();
+        this.flip = this.scene.add.group();
+        // Depth 0 keeps interactable sprites behind the player (depth 100) and hazards
+        // (depth ~50), matching their previous loose-sprite ordering.
+        this.interactableLayer = this.scene.add.layer().setDepth(0);
+    }
+
+    private getObjectLayer(name: string): Phaser.Tilemaps.ObjectLayer | null {
+        return this.map.getObjectLayer(name);
+    }
+
+
+    private indexObjects() {
+        for (const layer of this.map.objects ?? []) {
+            for (const obj of layer.objects) {
+                if (obj.id !== undefined) this.objectById.set(obj.id, obj);
+            }
+        }
+    }
+
+    private spawnInteractableLayer() {
+        const interLayer = this.getObjectLayer('Interactables');
+         if (interLayer) {
+            for (const obj of interLayer.objects) {
+                if (this.tiled.getObjectType(obj) === 'switch') this.createInteractable(obj);
+            }
+            for (const obj of interLayer.objects) {
+                if (this.tiled.getObjectType(obj) !== 'switch') this.createInteractable(obj);
+            }
+        }
+    }
+
+    private createInteractable(obj: Phaser.Types.Tilemaps.TiledObject) {
+            const type = this.tiled.getObjectType(obj);
+            const { cx, cy, w, h } = this.tiled.objectGeometry(obj);
+            // Platforms and switches get their own sprite creation (center origin) — see their cases below
+            const sprite = (obj.gid && type !== 'platform' && type !== 'switch') ? this.tiled.addTileSprite(obj.gid, obj.x!, obj.y!) : null;
+            // Group the visual with the other interactables so the flip hazard can exclude it
+            // from the screen invert (doors, keys, boxes, door_tops all flow through `sprite`;
+            // switches and platforms are added in their own cases below).
+            if (sprite) this.interactableLayer.add(sprite);
+
+            switch (type) {
+                case 'door': {
+                    const targetLevel = this.tiled.getTiledProp<string>(obj, 'targetLevel') ?? '';
+                    const locked = this.tiled.getTiledProp<boolean>(obj, 'locked') ?? false;
+                    const keyType = locked ? (this.tiled.getTiledProp<string>(obj, 'keyType') ?? 'default') : null;
+                    const door = new Door(this.scene, cx, cy, w, h, locked, keyType, targetLevel);
+                    door.setAlpha(0);
+                    door.tileSprite = sprite;
+                    this.door.add(door);
+                    this.doorById.set(obj.id!, door);
+                    break;
+                }
+                case 'door_top': {
+                    // Decorative top piece — linked by linkedDoorId so the top sprite can be swapped when the door unlocks at runtime.
+                    const linkedDoorId = this.tiled.getTiledProp<number>(obj, 'linkedDoorId');
+                    const door = linkedDoorId !== undefined ? this.doorById.get(linkedDoorId) : undefined;
+                    if (door) door.topSprite = sprite;
+                    break;
+                }
+                case 'key': {
+                    const keyType = this.tiled.getTiledProp<string>(obj, 'keyType') ?? 'default';
+                    const k = new Key(this.scene, cx, cy, w, h, keyType);
+                    k.setAlpha(0);
+                    k.tileSprite = sprite;
+                    this.item.add(k);
+                    break;
+                }
+                case 'switch': {
+                    const switchType = (this.tiled.getTiledProp<string>(obj, 'switchType') ?? 'button') as 'button' | 'lever' | 'oneshot';
+                    const sw = new Switch(this.scene, cx, cy, w, h, switchType);
+                    sw.flippedVertical = !!obj.flippedVertical;
+                    sw.setAlpha(0);
+
+                    // Trigger zone = the "lower half" of the tile IN ITS OWN ORIENTATION.
+                    // Unrotated that's the bottom half (centre offset (0, +h/4), size w × h/2);
+                    // the tile's flip/rotation transform then carries that half to the correct
+                    // world face. Since the transform is only ever a multiple of 90° (plus flips),
+                    // the result stays axis-aligned — a ±90° turn just swaps the box dimensions.
+                    // Levers are the exception: they keep the full-tile trigger (default).
+                    if (switchType !== 'lever') {
+                        // Orientation comes from BOTH the gid flip flags and the object's free
+                        // `rotation` field — combine them, then fold into (-180, 180].
+                        const flip = this.tiled.orientationFromFlips(obj);
+                        let angle = (flip.angle + (obj.rotation ?? 0)) % 360;
+                        if (angle < 0) angle += 360;
+                        if (angle > 180) angle -= 360;
+
+                        const rad = angle * Math.PI / 180;
+                        const ly = (h / 4) * flip.scaleY;   // local offset is (0, ly); x component is 0
+                        sw.triggerOffsetX = Math.round(-ly * Math.sin(rad));
+                        sw.triggerOffsetY = Math.round( ly * Math.cos(rad));
+                        const rotated = Math.abs(angle) === 90;
+                        sw.triggerWidth  = rotated ? h / 2 : w;
+                        sw.triggerHeight = rotated ? w : h / 2;
+                    }
+
+                    if (obj.gid) {
+                        const gid = obj.gid & 0x1FFFFFFF;   // strip Tiled flip bits before frame math
+                        sw.tileSprite = this.tiled.addOrientedTileSprite(obj, cx, cy, 0);
+                        this.interactableLayer.add(sw.tileSprite);
+                        sw.baseFrame = this.tiled.gidFrame(gid);
+                        // Tile pairs are (off, on) spaced 2 apart. If the placed tile is the "on" variant (gid%4==2), the active offset goes backward.
+                        if ((gid % 4) === 2) sw.activeFrameOffset = -2;
+                    }
+                    this.switch.add(sw);
+                    this.switchById.set(obj.id!, sw);
+                    break;
+                }
+                case 'platform': {
+                    const endTargetId = this.tiled.getTiledProp<number>(obj, 'endTarget') || undefined;
+                    let endX = cx, endY = cy;
+                    if (endTargetId) {
+                        const target = this.objectById.get(endTargetId);
+                        if (target) {
+                            endX = target.x! + (target.width ?? 0) / 2;
+                            endY = target.point ? target.y! : target.y! + (target.height ?? 0) / 2;
+                        }
+                    }
+                    const speed = this.tiled.getTiledProp<number>(obj, 'speed') ?? 50;
+                    const mode  = (this.tiled.getTiledProp<string>(obj, 'mode') ?? 'auto') as 'auto' | 'driven';
+                    const swId  = this.tiled.getTiledProp<number>(obj, 'linkedSwitchId') || undefined;
+                    const sw    = swId ? this.switchById.get(swId) : undefined;
+                    const moves = endX !== cx || endY !== cy;
+                    const platform = new MovingPlatform(
+                        this.scene, cx, cy, w, h,
+                        moves ? { x: endX, y: endY } : undefined,
+                        moves ? speed : undefined,
+                        sw ? 'driven' : mode
+                    );
+                    platform.setAlpha(0);
+                    // Center-origin sprite so setPosition(this.x, this.y) in update() aligns the visual exactly with the physics body
+                    if (obj.gid) {
+                        const img = this.scene.add.image(cx, cy, 'tileSprites', this.tiled.gidFrame(obj.gid & 0x1FFFFFFF));
+                        img.setOrigin(0.5, 0.5);
+                        platform.tileSprite = img;
+                        this.interactableLayer.add(img);
+                    }
+                    if (sw) platform.linkSwitch(sw);
+                    this.platform.add(platform);
+                    // Register in group map so the distribution pass can assign slots later
+                    if (endTargetId) {
+                        if (!this.platformGroups.has(endTargetId)) this.platformGroups.set(endTargetId, []);
+                        this.platformGroups.get(endTargetId)!.push({ platform, cx, cy });
+                    }
+                    break;
+                }
+                case 'box': {
+                    const friction = this.tiled.getTiledProp<number>(obj, 'friction') ?? 0.6;
+                    const mass     = this.tiled.getTiledProp<number>(obj, 'mass') ?? 1;
+                    const swId     = this.tiled.getTiledProp<number>(obj, 'linkedSwitchId') || undefined;
+                    const sw       = swId ? this.switchById.get(swId) : undefined;
+                    const box = new Box(this.scene, cx, cy, w, h, friction * 500, mass, friction);
+                    box.setAlpha(0);
+                    box.tileSprite = sprite;
+                    if (sw) box.linkSwitch(sw);
+                    this.box.add(box);
+                    break;
+                }
+            }
+        }
+
+    private spawnHazards() {
+        const hazardLayer = this.getObjectLayer('Hazards');
+        if (!hazardLayer) return;
+        for (const obj of hazardLayer.objects) this.spawnHazard(obj);
+    }
+
+    private spawnHazard(obj: Phaser.Types.Tilemaps.TiledObject) {
+            const type = this.tiled.getObjectType(obj);
+            const { cx, cy, w, h, rot } = this.tiled.objectGeometry(obj);
+
+            // Treat linkedSwitchId=0 as "not linked" (0 is the tile-default sentinel for "none")
+            const prop = <T>(name: string) => this.tiled.getTiledProp<T>(obj, name);
+            const linkedSwitch = (id: number | undefined): Switch | undefined =>
+                id ? this.switchById.get(id) : undefined;
+
+            switch (type) {
+                case 'spike': {
+                    const spikeSwitchId = prop<number>('linkedSwitchId');
+                    const sw = linkedSwitch(spikeSwitchId);
+                    if (!obj.gid && sw) {
+                        // Invisible rectangle spike driven by a switch
+                        const startEnabled = prop<boolean>('startEnabled') ?? true;
+                        this.spawnSwitchDrivenSpike(obj, cx, cy, w, h, sw, startEnabled);
+                        break;
+                    }
+                    if (obj.gid) this.tiled.addTileSprite(obj.gid, obj.x!, obj.y!, rot);
+                    const spike = new Hazard(this.scene, cx, cy, w, h, true);
+                    spike.flippedVertical = !!obj.flippedVertical;
+                    spike.setAlpha(0);
+                    if (obj.gid) {
+                        const { angle, scaleX, scaleY } = this.tiled.orientationFromFlips(obj);
+                        this.shrinkSpikeHitbox(spike, angle, scaleX, scaleY);
+                    }
+                    if (sw) {
+                        const startEnabled = prop<boolean>('startEnabled') ?? true;
+                        spike.linkSwitch(sw, startEnabled);
+                        spike.setEnabled(startEnabled);
+                    }
+                    this.hazard.add(spike);
+                    break;
+                }
+                case 'trigger_spike': {
+                    const spikeSwitchId = prop<number>('linkedSwitchId');
+                    const sw = linkedSwitch(spikeSwitchId);
+                    if (sw) {
+                        const startEnabled = prop<boolean>('startEnabled') ?? true;
+                        this.spawnSwitchDrivenSpike(obj, cx, cy, w, h, sw, startEnabled);
+                    } else {
+                        this.spawnTriggerSpike(
+                            obj, cx, cy, w, h,
+                            prop<number>('offTime')     ?? 1000,
+                            prop<number>('onTime')      ?? 500,
+                            prop<number>('extendTime')  ?? 80
+                        );
+                    }
+                    break;
+                }
+                case 'saw':
+                    this.spawnSaw(obj, cx, cy);
+                    break;
+                case 'turret':
+                    this.spawnTurret(obj, cx, cy);
+                    break;
+                case 'magnet':
+                    this.spawnMagnet(obj, cx, cy);
+                    break;
+                case 'flip':
+                    this.spawnFlip(obj, cx, cy, w, h);
+                    break;
+                case 'punch_box': {
+                    const forceX = prop<number>('forceX');
+                    const forceY = prop<number>('forceY');
+                    // The body tile (frame 173) carries no force props — it's the static,
+                    // collidable housing. Render it where Tiled placed it, oriented by its own
+                    // flip flags, and let the fist object (which has the force props) own the
+                    // punch logic and derive the body cell for its trigger zone.
+                    if (forceX === undefined && forceY === undefined) {
+                        const bodySprite = this.tiled.addOrientedTileSprite(obj, cx, cy, 48);
+                        this.punchBodyByObj.set(obj, bodySprite);
+                        break;
+                    }
+                    const swId   = prop<number>('linkedSwitchId');
+                    const sw     = linkedSwitch(swId);
+                    const startEnabled = prop<boolean>('startEnabled') ?? true;
+                    const fistFrame = obj.gid ? this.tiled.gidFrame(obj.gid & 0x1FFFFFFF) : 0;
+
+                    // The punch direction is the CARDINAL direction from the body to this fist
+                    // (never the force vector — a 2D force is just a feel offset). Find the
+                    // nearest body tile (a punch_box object with no force props) and snap the
+                    // body→fist offset to its dominant axis.
+                    let dirX = 0, dirY = 0, best = Infinity;
+                    let bodyObj: Phaser.Types.Tilemaps.TiledObject | null = null;
+                    for (const other of this.objectById.values()) {
+                        if (other === obj || this.tiled.getObjectType(other) !== 'punch_box') continue;
+                        if (this.tiled.getTiledProp(other, 'forceX') !== undefined ||
+                            this.tiled.getTiledProp(other, 'forceY') !== undefined) continue; // skip other fists
+                        const g = this.tiled.objectGeometry(other);
+                        const dx = cx - g.cx, dy = cy - g.cy;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist < best) {
+                            best = dist;
+                            bodyObj = other;
+                            if (Math.abs(dx) >= Math.abs(dy)) { dirX = Math.sign(dx); dirY = 0; }
+                            else                               { dirX = 0; dirY = Math.sign(dy); }
+                        }
+                    }
+                    // Fallback if no body is found: snap the force to its dominant axis.
+                    if (dirX === 0 && dirY === 0) {
+                        const fx = forceX ?? 0, fy = forceY ?? 0;
+                        if (Math.abs(fx) >= Math.abs(fy)) dirX = Math.sign(fx) || -1;
+                        else                              dirY = Math.sign(fy);
+                    }
+
+                    const pb = new PunchBox(this.scene, cx, cy, w, h, fistFrame, dirX, dirY, forceX ?? -200, forceY ?? 0, startEnabled);
+                    pb.flippedVertical = !!obj.flippedVertical;
+                    if (sw) pb.linkSwitch(sw);
+                    if (bodyObj) this.punchBoxBodyObj.set(pb, bodyObj);
+                    this.punchBox.add(pb);
+                    break;
+                }
+            }
+        }
+    
+        /**
+         * Shrink a spike hazard's static body so the kill zone sits toward the spike's base,
+         * clear of its tips. Death is a discrete Arcade overlap between the player and the
+         * hazard body — a box or platform between them does NOT shield the player. When the
+         * player fast-falls onto a box that is riding through spikes, the player's body dips
+         * several px past the box's surface for one frame before the collider separates them;
+         * a full-height spike body clips that dip and registers a false spike hit. Pulling the
+         * tip-facing edge inward (and narrowing the sides) removes those false positives while
+         * a genuine landing still buries the player well past the margin.
+         *
+         * Orientation-aware: the tip direction is derived from the tile's flip/rotation so
+         * floor, ceiling, and wall spikes all shrink off the correct (tip-facing) edge.
+         */
+        private shrinkSpikeHitbox(
+            hazard: Hazard,
+            angle: number, scaleX: number, scaleY: number,
+            tipInset = 2, lateralInset = 1
+        ) {
+            const body = hazard.body as Phaser.Physics.Arcade.StaticBody;
+
+            // Tile-local "up" (0,-1) points from base to tip. Apply the same scale-then-rotate
+            // transform the sprite uses, then snap to the dominant world axis.
+            const rad = Phaser.Math.DegToRad(angle);
+            const cos = Math.cos(rad), sin = Math.sin(rad);
+            const localX = 0 * scaleX, localY = -1 * scaleY;
+            const tx = localX * cos - localY * sin;
+            const ty = localX * sin + localY * cos;
+            const horizontal = Math.abs(tx) > Math.abs(ty);
+            const tipX = horizontal ? Math.sign(tx) : 0;
+            const tipY = horizontal ? 0 : Math.sign(ty);
+
+            // Build the shrunken rectangle explicitly from the ORIGINAL bounds. We can't rely on
+            // StaticBody.setSize's centring: it keeps the body anchored to its top-left corner and
+            // trims the removed size off the bottom/right, which would leave the tip edge flush for
+            // floor/left spikes. Instead we anchor the base edge and pull ONLY the tip edge inward
+            // by the full `tipInset`, insetting the two lateral edges by `lateralInset` each.
+            const left = body.position.x, top = body.position.y;
+            const bw = body.width, bh = body.height;
+
+            const newW = bw - (horizontal ? tipInset : 2 * lateralInset);
+            const newH = bh - (horizontal ? 2 * lateralInset : tipInset);
+            // Tip pointing -X/-Y means the tip edge is the left/top, so shift the origin in by the
+            // inset; tip pointing +X/+Y keeps the origin (base edge) put.
+            const newLeft = horizontal ? (tipX < 0 ? left + tipInset : left) : left + lateralInset;
+            const newTop  = horizontal ? top + lateralInset : (tipY < 0 ? top + tipInset : top);
+
+            body.setSize(newW, newH, false);
+            body.position.set(newLeft, newTop);
+            body.updateCenter();
+        }
+
+        private spawnTriggerSpike(obj: Phaser.Types.Tilemaps.TiledObject, cx: number, cy: number, w: number, h: number, offTime = 1000, onTime = 500, extendTime = 80) {
+                const { angle, scaleX, scaleY } = this.tiled.orientationFromFlips(obj);
+                // A ±90° rotation lays the row of spike tiles vertically, so the axis-aligned
+                // hitbox must swap its width/height to match the rotated visual.
+                const rotated = Math.abs(angle) === 90;
+                const bw = rotated ? h : w;
+                const bh = rotated ? w : h;
+
+                const tileCount = Math.max(1, Math.round(w / 8));
+                const container = this.scene.add.container(cx, cy).setDepth(50).setAngle(angle).setScale(scaleX, scaleY);
+                const tiles: Phaser.GameObjects.Image[] = [];
+                for (let i = 0; i < tileCount; i++) {
+                    const t = this.scene.add.image((i - (tileCount - 1) / 2) * 8, 0, 'tileSprites', TRIGGER_SPIKE_FRAMES[0] - 1);
+                    container.add(t);
+                    tiles.push(t);
+                }
+
+                const hazard = new Hazard(this.scene, cx, cy, bw, bh, true);
+                hazard.flippedVertical = !!obj.flippedVertical;
+                hazard.setAlpha(0);
+                hazard.tileSprite = container;
+                this.shrinkSpikeHitbox(hazard, angle, scaleX, scaleY);
+                // Start safe — body disabled until first dangerous frame
+                (hazard.body as any).enable = false;
+        
+                const seq = makeTriggerSpikeSequence(offTime, onTime, extendTime);
+                let step = 0;
+                let prevDangerous = false;
+                const tick = () => {
+                    const [frameIdx, dwell, dangerous] = seq[step];
+                    tiles.forEach(t => t.setFrame(TRIGGER_SPIKE_FRAMES[frameIdx] - 1));
+                    (hazard.body as any).enable = dangerous;
+                    // Play the extension sound the moment the spike becomes dangerous.
+                    if (dangerous && !prevDangerous) this.scene.game.events.emit('sfx-trigger-spike');
+                    prevDangerous = dangerous;
+                    step = (step + 1) % seq.length;
+                    this.scene.time.delayedCall(dwell, tick);
+                };
+                // Don't start immediately — defer to pendingTriggerSpikeStarters so all
+                // trigger spikes in the level start on the exact same frame and stay in sync.
+                this.pendingTriggerSpikeStarters.push(tick);
+        
+                this.hazard.add(hazard);
+            }
+        
+            private spawnSwitchDrivenSpike(
+                obj: Phaser.Types.Tilemaps.TiledObject,
+                cx: number, cy: number, w: number, h: number,
+                sw: Switch, startEnabled: boolean
+            ) {
+                const { angle, scaleX, scaleY } = this.tiled.orientationFromFlips(obj);
+                const rotated = Math.abs(angle) === 90;
+                const bw = rotated ? h : w;
+                const bh = rotated ? w : h;
+
+                const tileCount = Math.max(1, Math.round(w / 8));
+                const container = this.scene.add.container(cx, cy).setDepth(50).setAngle(angle).setScale(scaleX, scaleY);
+                const tiles: Phaser.GameObjects.Image[] = [];
+                for (let i = 0; i < tileCount; i++) {
+                    const img = this.scene.add.image(
+                        (i - (tileCount - 1) / 2) * 8, 0,
+                        'tileSprites', TRIGGER_SPIKE_FRAMES[startEnabled ? 3 : 0] - 1
+                    );
+                    container.add(img);
+                    tiles.push(img);
+                }
+
+                const hazard = new Hazard(this.scene, cx, cy, bw, bh, true);
+                hazard.flippedVertical = !!obj.flippedVertical;
+                hazard.setAlpha(0);
+                hazard.tileSprite = container;
+                this.shrinkSpikeHitbox(hazard, angle, scaleX, scaleY);
+                (hazard.body as any).enable = startEnabled;
+        
+                const setFrame = (fi: number) => tiles.forEach(t => t.setFrame(TRIGGER_SPIKE_FRAMES[fi] - 1));
+        
+                const runSeq = (seq: [number, number][], dangerousFromStep: number) => {
+                    let step = 0;
+                    const tick = () => {
+                        const [fi, dwell] = seq[step];
+                        setFrame(fi);
+                        (hazard.body as any).enable = step >= dangerousFromStep;
+                        if (++step < seq.length && dwell > 0) this.scene.time.delayedCall(dwell, tick);
+                    };
+                    tick();
+                };
+        
+                let prevPowered = sw.powered;
+                this.scene.events.on('update', () => {
+                    if (sw.powered === prevPowered) return;
+                    prevPowered = sw.powered;
+                    const nowEnabled = sw.powered !== startEnabled;
+                    if (nowEnabled) {
+                        runSeq([[1, 80], [2, 80], [3, 0]], 1);
+                    } else {
+                        (hazard.body as any).enable = false;
+                        runSeq([[2, 80], [1, 80], [0, 0]], 99);
+                    }
+                });
+        
+                this.hazard.add(hazard);
+            }
+        
+            private spawnSaw(
+                obj: Phaser.Types.Tilemaps.TiledObject,
+                cx: number, cy: number
+            ) {
+                const endTargetId = this.tiled.getTiledProp<number>(obj, 'endTarget');
+                let endX: number | undefined;
+                let endY: number | undefined;
+                if (endTargetId !== undefined) {
+                    const target = this.objectById.get(endTargetId);
+                    if (target) {
+                        // endTarget is placed at the bottom-left corner of the destination tile cell;
+                        // subtract half a tile height to get the saw's center-to-center travel target.
+                        endX = target.x! + (target.width ?? 0) / 2;
+                        endY = target.y! - 4;
+                    }
+                }
+                endX ??= this.tiled.getTiledProp<number>(obj, 'endX') ?? cx;
+                endY ??= this.tiled.getTiledProp<number>(obj, 'endY') ?? cy;
+                const speed = this.tiled.getTiledProp<number>(obj, 'speed') ?? 30;
+                const linkedSwitchId = this.tiled.getTiledProp<number>(obj, 'linkedSwitchId');
+                const moves = endX !== cx || endY !== cy;
+        
+                const container = this.scene.add.container(cx, cy).setDepth(50);
+                const tiles: Phaser.GameObjects.Image[] = [];
+                for (let i = 0; i < 3; i++) {
+                    const t = this.scene.add.image((i - 1) * 8, 0, 'tileSprites', SAW_ANIM_FRAMES[0][i] - 1);
+                    container.add(t);
+                    tiles.push(t);
+                }
+                let f = 0;
+                this.scene.time.addEvent({
+                    delay: 100,
+                    loop: true,
+                    callback: () => {
+                        f = (f + 1) % SAW_ANIM_FRAMES.length;
+                        for (let i = 0; i < 3; i++) tiles[i].setFrame(SAW_ANIM_FRAMES[f][i] - 1);
+                    },
+                });
+        
+                // Hitbox is only the 8×8 center tile — visual is decorative
+                const saw = new Hazard( this.scene, cx, cy, 8, 8, !moves, moves ? { x: endX, y: endY } : undefined, moves ? speed : undefined, 'auto');
+                saw.setAlpha(0);
+                saw.isSaw = true;
+
+                // Trim the vertical hitbox by 2px (1px top + 1px bottom) so a player
+                // standing on a pushable box beneath the saw isn't killed by the overhang.
+                if (moves) {
+                    (saw.body as Phaser.Physics.Arcade.Body).setSize(8, 6, true);
+                } else {
+                    const sb = saw.body as Phaser.Physics.Arcade.StaticBody;
+                    sb.setSize(8, 6);
+                    sb.setOffset(0, 1);
+                }
+                saw.tileSprite = container;
+        
+                // Treat linkedSwitchId=0 as "not linked" (0 is the tile-default sentinel for "none").
+                if (linkedSwitchId) {
+                    const sw = this.switchById.get(linkedSwitchId);
+                    if (sw) {
+                        const startEnabled = this.tiled.getTiledProp<boolean>(obj, 'startEnabled') ?? true;
+                        // Mirror the spike wiring: startEnabled feeds `inverted` so the saw begins
+                        // in its startEnabled state and the switch toggles it the other way.
+                        saw.linkSwitch(sw, startEnabled);
+                        saw.setEnabled(startEnabled);
+                    }
+                }
+        
+                this.hazard.add(saw);
+            }
+        
+            private spawnTurret(
+                obj: Phaser.Types.Tilemaps.TiledObject,
+                cx: number, cy: number
+            ) {
+                // The flip/rotation flags baked into the tile in Tiled ARE the orientation data.
+                // Phaser strips them out of obj.gid before we see it and exposes them as booleans.
+                const H = !!obj.flippedHorizontal;
+                const V = !!obj.flippedVertical;
+                const D = !!obj.flippedAntiDiagonal;
+        
+                // Standard Tiled → Phaser transform conversion:
+                //   D=0  H=0  V=0  →  no transform
+                //   D=0  H=1  V=0  →  H-flip  (scaleX = -1)
+                //   D=0  H=0  V=1  →  V-flip  (scaleY = -1)
+                //   D=0  H=1  V=1  →  180°
+                //   D=1  H=1  V=0  →  90° CW
+                //   D=1  H=0  V=1  →  90° CCW
+                //   D=1  H=0  V=0  →  anti-diagonal (90° CW + V-flip)
+                //   D=1  H=1  V=1  →  90° CCW + H-flip
+                let angle = 0, scaleX = 1, scaleY = 1;
+                if (D) {
+                    if      ( H && !V) { angle =  90; }
+                    else if (!H &&  V) { angle = -90; }
+                    else if (!H && !V) { angle =  90; scaleY = -1; }
+                    else               { angle = -90; scaleX = -1; }
+                } else {
+                    if      (H && V)   { angle = 180; }
+                    else if (H)        { scaleX = -1; }
+                    else if (V)        { scaleY = -1; }
+                }
+        
+                // Bullet direction: H-flip means fire left, no H-flip means fire right.
+                // (Extend with D-flip cases if up/down turrets are ever needed.)
+                const direction: 'left' | 'right' = H ? 'left' : 'right';
+        
+                const fireInterval = this.tiled.getTiledProp<number>(obj, 'fireInterval') ?? 1000;
+        
+                // The placed anchor tile is always the BODY of the turret.
+                // The barrel expands away from it in the firing direction.
+                //
+                //   Right-facing (H=false): body is the bottom-LEFT tile of the 2×2
+                //     → container centre is 4 px right and 4 px up from the anchor
+                //   Left-facing  (H=true) : body is the bottom-RIGHT tile of the 2×2
+                //     → container centre is 4 px LEFT and 4 px up from the anchor
+                //
+                // The scaleX = -1 applied to the container then mirrors all four tile
+                // images in-place, so GID 56 (body) visually ends up at the anchor world
+                // position in both cases.
+                const ocx = H ? -4 : 4;
+                const ocy = -4;  // top row is always one tile above the body row
+        
+                const container = this.scene.add.container(cx + ocx, cy + ocy).setDepth(50);
+                const offsets: [number, number][] = [[-4, -4], [4, -4], [-4, 4], [4, 4]];
+                for (let i = 0; i < 4; i++) {
+                    container.add(this.scene.add.image(offsets[i][0], offsets[i][1], 'tileSprites', TURRET_TILE_GIDS[i] - 1));
+                }
+                // Apply the Tiled flip/rotation to the container
+                container.setAngle(angle).setScale(scaleX, scaleY);
+        
+                // Hitbox covers only the anchor tile (8×8) — not the full 2×2 block.
+                const turret = new Hazard(this.scene, cx, cy, 8, 8, true);
+                turret.setAlpha(0);
+                turret.tileSprite = container;
+                turret.direction = direction as 'left' | 'right';
+                this.hazard.add(turret);
+        
+                this.scene.time.addEvent({
+                    delay: fireInterval,
+                    loop: true,
+                    callback: () => turret.shoot(),
+                });
+            }
+
+            private spawnFlip(obj: Phaser.Types.Tilemaps.TiledObject, cx: number, cy: number, w: number, h: number) {
+                const flip = new Flip(this.scene, cx, cy, w, h);
+                if (obj.gid) flip.tileSprite = this.tiled.addOrientedTileSprite(obj, cx, cy, 48);
+                flip.startAnim();
+                this.flip.add(flip);
+            }
+
+            private spawnMagnet(obj: Phaser.Types.Tilemaps.TiledObject, cx: number, cy: number) {
+                const { w, h } = this.tiled.objectGeometry(obj);
+
+                // The flip/rotation flags baked into the tile in Tiled ARE the orientation data.
+                // Phaser strips them out of obj.gid and exposes them as booleans; the magnet faces
+                // (and pulls from) the direction its art points.
+                const H = !!obj.flippedHorizontal;
+                const V = !!obj.flippedVertical;
+                const D = !!obj.flippedAntiDiagonal;
+                const facing: MagnetFacing = D
+                    ? ((V && !H) || (H && V) ? 'up' : 'down')
+                    : (H ? 'left' : 'right');
+
+                const radius       = this.tiled.getTiledProp<number>(obj, 'radius') ?? 40;
+                const strength     = this.tiled.getTiledProp<number>(obj, 'strength') ?? 150;
+                const startEnabled = this.tiled.getTiledProp<boolean>(obj, 'startEnabled') ?? true;
+                const swId         = this.tiled.getTiledProp<number>(obj, 'linkedSwitchId') || undefined;
+                const sw           = swId ? this.switchById.get(swId) : undefined;
+
+                const magnet = new Magnet(this.scene, cx, cy, w, h, facing, radius, strength, startEnabled);
+                magnet.setAlpha(0);
+                if (obj.gid) magnet.tileSprite = this.tiled.addOrientedTileSprite(obj, cx, cy, 48);
+                if (sw) magnet.linkSwitch(sw);
+                magnet.setEnabled(startEnabled);
+                this.magnet.add(magnet);
+            }
+
+    private distributePlatforms() {
+        for (const [endTargetId, entries] of this.platformGroups) {
+            if (entries.length <= 1) continue;
+            const target = this.objectById.get(endTargetId);
+            if (!target || target.point) continue;
+            const tw = target.width ?? 0;
+            const th = target.height ?? 0;
+            if (tw >= th) {
+                // Wide rect → distribute side-by-side along X
+                entries.sort((a, b) => a.cx - b.cx);
+                const targetCenterY = target.y! + th / 2;
+                entries.forEach(({ platform }, i) => {
+                    platform.setEndPos(target.x! + platform.width / 2 + i * platform.width, targetCenterY);
+                });
+            } else {
+                // Tall rect → stack along Y
+                entries.sort((a, b) => a.cy - b.cy);
+                const targetCenterX = target.x! + tw / 2;
+                entries.forEach(({ platform }, i) => {
+                    platform.setEndPos(targetCenterX, target.y! + platform.height / 2 + i * platform.height);
+                });
+            }
+        }
+    }
+
+    // Detect switches / boxes resting on top of a platform at spawn and attach them so they ride along.
+    // Switches have no physics body (they can only move via syncPosition), and horizontally moving
+    // platforms don't carry bodies through Arcade friction — so riders must be attached explicitly.
+    private attachRidersToPlatforms() {
+        // Now that every hazard exists, hand each platform-riding punch box its housing sprite
+        // so syncPosition can carry the whole assembly (fist + arm + housing) together.
+        for (const [pb, bodyObj] of this.punchBoxBodyObj) {
+            pb.bodySprite = this.punchBodyByObj.get(bodyObj) ?? null;
+        }
+
+        const platforms = this.platform.getChildren() as MovingPlatform[];
+        if (platforms.length === 0) return;
+
+        // friction 1 = always sticks; MovingPlatform gates boxes below its threshold.
+        // flippedVertical marks a rider authored upside-down to hang from a platform's UNDERSIDE.
+        // Switches, spikes and punch boxes can all be ceiling-mounted; boxes rest on top via gravity.
+        const riders: { obj: Switch | Hazard | Box | PunchBox; friction: number; flippedVertical: boolean }[] = [
+            ...this.switch.getChildren().map(s => ({ obj: s as Switch, friction: 1, flippedVertical: (s as Switch).flippedVertical })),
+            ...this.hazard.getChildren().map(h => ({ obj: h as Hazard, friction: 1, flippedVertical: (h as Hazard).flippedVertical })),
+            ...this.box.getChildren().map(b => ({ obj: b as Box, friction: (b as Box).friction, flippedVertical: false })),
+            ...this.punchBox.getChildren().map(p => ({ obj: p as PunchBox, friction: 1, flippedVertical: (p as PunchBox).flippedVertical })),
+        ];
+
+        for (const { obj, friction, flippedVertical } of riders) {
+            const rLeft   = obj.x - obj.width / 2;
+            const rRight  = obj.x + obj.width / 2;
+            const rTop    = obj.y - obj.height / 2;
+            const rBottom = obj.y + obj.height / 2;
+
+            let best: MovingPlatform | null = null;
+            let bestOverlap = 0;
+            for (const p of platforms) {
+                const pTop    = p.y - p.height / 2;
+                const pBottom = p.y + p.height / 2;
+                // Rider rests on the platform's TOP edge, OR — only when authored upside-down
+                // (vertical flip) to signal intent — hangs from its BOTTOM edge. Small tolerance.
+                const onTop    = Math.abs(rBottom - pTop) <= 2;
+                const onBottom = flippedVertical && Math.abs(rTop - pBottom) <= 2;
+                if (!onTop && !onBottom) continue;
+                const overlap = Math.min(rRight, p.x + p.width / 2) - Math.max(rLeft, p.x - p.width / 2);
+                if (overlap > bestOverlap) { bestOverlap = overlap; best = p; }
+            }
+
+            if (best) best.attachObj(obj, obj.x - best.x, obj.y - best.y, friction);
+        }
+    }
+
+    private syncTriggerSpikes() {
+         this.scene.time.delayedCall(0, () => {
+            for (const start of this.pendingTriggerSpikeStarters) start();
+            this.pendingTriggerSpikeStarters = [];
+        });
+    }
+
+    private spawnPlayer(): Player {
+        const spawnLayer = this.map.getObjectLayer('Spawn');
+        const sp = spawnLayer!.objects[0];
+        const spawnX = sp.x! + sp.width! / 2;
+        const spawnY = (sp.gid ? sp.y! - sp.height! : sp.y!) + sp.height! / 2;
+
+        const player = new Player(this.scene, spawnX, spawnY);
+        player.setTintMode(Phaser.TintModes.FILL);
+        player.levelStartX = spawnX;
+        player.levelStartY = spawnY;
+        
+        return player;
+    }
+}   
