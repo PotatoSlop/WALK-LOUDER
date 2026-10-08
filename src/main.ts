@@ -34,6 +34,9 @@ let disposeTitle: (() => void) | undefined;
 document.fonts.ready.then(() => {
     game = new Phaser.Game(config);
     disposeTitle = initTitlePlacement();
+    // Dev-only handle for physics debugging from the console / preview harness (world-stepping).
+    // Stripped from production builds by Vite's dead-code elimination on import.meta.env.DEV.
+    if (import.meta.env.DEV) (window as any).game = game;
 });
 
 // Vite HMR: without this, every hot update re-runs this module and creates ANOTHER

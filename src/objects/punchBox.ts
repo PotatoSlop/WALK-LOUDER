@@ -171,9 +171,34 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
                 if (!this.inRange.has(target)) this.punch();
             }
 
-            if (this.isPunching && this.overlapsSpan(pb)) this.applyImpulse(target);
+            if (this.isPunching && this.overlapsSpan(pb)) {
+                // Don't punch the player directly when they're only riding a box that is itself
+                // taking the hit — the fist strikes the block, and the player travels with it
+                // via the ride (scene carry). Without this the player, whose body also falls
+                // inside the tall punch span while standing on the block, gets an independent
+                // knockback on top of the ride (e.g. a sideways forceX would fling them off).
+                if (player && target === player && this.playerRidingPunchedBox(player, boxes)) continue;
+                this.applyImpulse(target);
+            }
         }
         this.inRange = nowInRange;
+    }
+
+    // True when the player is resting on top of a box that is itself in the punch span, so the
+    // box is taking this punch and shields the rider. Restricted to non-downward punches: a
+    // downward fist strikes the box's top surface, i.e. exactly where an on-top rider stands,
+    // so it should hit them directly.
+    private playerRidingPunchedBox(player: any, boxes: any[]): boolean {
+        if (this.dirY > 0) return false;
+        const pp = player.Body;
+        for (const b of boxes) {
+            if (!b.active) continue;
+            const bb = b.Body;
+            if (!this.overlapsSpan(bb)) continue;                     // box not taking the punch
+            if (pp.right <= bb.left || pp.left >= bb.right) continue;  // no horizontal overlap
+            if (Math.abs(bb.top - pp.bottom) <= 4) return true;        // player resting on its top
+        }
+        return false;
     }
 
     private overlapsBody(pb: { x: number; y: number; width: number; height: number }): boolean {
@@ -184,8 +209,14 @@ export class PunchBox extends Phaser.GameObjects.Rectangle {
         const hzCx = this.restX + this.dirX * (TILE / 2);
         const hzCy = this.restY + this.dirY * (TILE / 2);
         const isHorizontal = this.dirX !== 0;
-        const widthPad = isHorizontal ? 12 : 24;
-        const heightPad = isHorizontal ? 24 : 12;
+        // bodyOverlapsSensor treats these as HALF-extents. Keep the CROSS axis narrow — only a
+        // target overlapping the fist's own column/row is struck — and the TRAVEL axis long
+        // enough to reach the extended fist. Previously the cross pad was 24px (3 tiles), so a
+        // target standing several tiles to the side of a vertical punch got hit for no reason.
+        const CROSS_PAD = TILE / 2;        // 4px — half the 1-tile-wide fist
+        const TRAVEL_PAD = TILE + TILE / 2; // 12px — reaches the fully extended fist tip
+        const widthPad = isHorizontal ? TRAVEL_PAD : CROSS_PAD;
+        const heightPad = isHorizontal ? CROSS_PAD : TRAVEL_PAD;
         return bodyOverlapsSensor(pb, { x: hzCx, y: hzCy, width: 0, height: 0 }, widthPad, heightPad);
     }
 

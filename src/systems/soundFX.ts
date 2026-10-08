@@ -22,6 +22,37 @@ const SFX_KEYS = [
     'saw',
 ] as const;
 
+// Per-sound playback volume. These are loudness-normalized: each source .wav was measured
+// (RMS via ffmpeg volumedetect) and given a gain that lands it at a target perceived level,
+// so nothing jumps out relative to the rest. Values are then trimmed by role — big moments
+// (death, level win) sit loud; ambient loops sit low; and frequent/repetitive ticks
+// (footsteps, saw whir, spike arming) sit lowest so they never dominate the mix. This is the
+// single source of truth for relative levels — the master slider scales the whole bus on top.
+const VOLUMES: Record<string, number> = {
+    // Big moments — prominent, positive/negative payoff.
+    door_win: 0.95,
+    die: 1.0,
+    bullet_die: 1.0,
+    // Confirmation / punchy one-shots.
+    SuccessUI: 0.85,
+    gun_fire: 0.85,
+    punch: 0.78,
+    // Standard feedback.
+    key_pickup: 0.68,
+    jump: 0.68,
+    switch: 0.65,
+    PauseUI: 0.72,
+    SelectUI: 0.6,
+    bullet_hit_wall: 0.9,
+    // Sustained ambient loops — a bed, not a focal point.
+    magnet: 0.42,
+    movePlatform: 0.36,
+    // Frequent / repetitive — kept clearly subdued.
+    trigger_spike: 0.32,
+    saw: 0.28,
+    walk: 0.12,
+};
+
 // Footsteps and jumps get a little pitch variation so repeats don't sound robotic.
 function randomRate(spread = 0.12): number {
     // performance.now() gives us a cheap, ever-changing seed (Math.random is unavailable here).
@@ -65,7 +96,8 @@ export class SoundManager {
     // its own list and calls destroy() for us once the clip ends via `remove-on-complete`.
     private play(key: string, config?: Phaser.Types.Sound.SoundConfig) {
         if (!this.game.cache.audio.exists(key)) return;
-        this.sound.play(key, config);
+        // Default to the normalized level for this key; an explicit config.volume still wins.
+        this.sound.play(key, { volume: VOLUMES[key] ?? 1, ...config });
     }
 
     private registerEvents() {
@@ -118,9 +150,9 @@ export class SoundManager {
         this.play(cause === 'bullet' ? 'bullet_die' : 'die');
     }
 
-    // Overwritten per step, quieter than the rest, randomized pitch.
+    // One per footfall, quietest in the mix (see VOLUMES.walk), randomized pitch.
     private playWalk() {
-        this.play('walk', { volume: 0.01, rate: randomRate(0.25) });
+        this.play('walk', { rate: randomRate(0.25) });
     }
 
     // Reuse (or lazily create) a single looping Sound instance for a sustained effect, so
@@ -139,7 +171,7 @@ export class SoundManager {
         if (!this.game.cache.audio.exists('jump')) return;
         if (!this.jumpSound || this.jumpSound.pendingRemove) this.jumpSound = this.sound.add('jump');
         if (this.jumpSound.isPlaying) return;
-        this.jumpSound.play({ rate: randomRate(0.15) });
+        this.jumpSound.play({ volume: VOLUMES.jump, rate: randomRate(0.15) });
     }
 
     private stopJump() {
@@ -147,18 +179,18 @@ export class SoundManager {
     }
 
     private toggleMagnet({ active }: { active: boolean }) {
-        if (active) this.magnetSound = this.ensureLoop(this.magnetSound, 'magnet', 0.6);
+        if (active) this.magnetSound = this.ensureLoop(this.magnetSound, 'magnet', VOLUMES.magnet);
         else this.magnetSound?.stop();
     }
 
     private togglePlatform({ moving }: { moving: boolean }) {
-        if (moving) this.platformSound = this.ensureLoop(this.platformSound, 'movePlatform', 0.6);
+        if (moving) this.platformSound = this.ensureLoop(this.platformSound, 'movePlatform', VOLUMES.movePlatform);
         else this.platformSound?.stop();
     }
 
     // Saw blade: a quiet sustained whir whenever any saw is travelling.
     private toggleSaw({ moving }: { moving: boolean }) {
-        if (moving) this.sawSound = this.ensureLoop(this.sawSound, 'saw', 0.15);
+        if (moving) this.sawSound = this.ensureLoop(this.sawSound, 'saw', VOLUMES.saw);
         else this.sawSound?.stop();
     }
 

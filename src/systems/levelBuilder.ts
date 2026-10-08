@@ -325,11 +325,18 @@ export class LevelBuilder {
                         this.spawnSwitchDrivenSpike(obj, cx, cy, w, h, sw, startEnabled);
                         break;
                     }
-                    if (obj.gid) this.tiled.addTileSprite(obj.gid, obj.x!, obj.y!, rot);
                     const spike = new Hazard(this.scene, cx, cy, w, h, true);
                     spike.flippedVertical = !!obj.flippedVertical;
                     spike.setAlpha(0);
                     if (obj.gid) {
+                        // Center-origin sprite at the body centre so syncPosition() carries the
+                        // texture with the hitbox when a spike rides a moving platform. objectGeometry
+                        // already returns (cx, cy) as the rotated tile centre, so this is visually
+                        // identical to the old corner-origin placement for a static spike.
+                        const img = this.scene.add.image(cx, cy, 'tileSprites', this.tiled.gidFrame(obj.gid & 0x1FFFFFFF)).setOrigin(0.5, 0.5);
+                        if (rot !== 0) img.setAngle(rot);
+                        spike.tileSprite = img;
+
                         const { angle, scaleX, scaleY } = this.tiled.orientationFromFlips(obj);
                         this.shrinkSpikeHitbox(spike, angle, scaleX, scaleY);
                     }
@@ -794,15 +801,16 @@ export class LevelBuilder {
 
         // friction 1 = always sticks; MovingPlatform gates boxes below its threshold.
         // flippedVertical marks a rider authored upside-down to hang from a platform's UNDERSIDE.
-        // Switches, spikes and punch boxes can all be ceiling-mounted; boxes rest on top via gravity.
-        const riders: { obj: Switch | Hazard | Box | PunchBox; friction: number; flippedVertical: boolean }[] = [
-            ...this.switch.getChildren().map(s => ({ obj: s as Switch, friction: 1, flippedVertical: (s as Switch).flippedVertical })),
-            ...this.hazard.getChildren().map(h => ({ obj: h as Hazard, friction: 1, flippedVertical: (h as Hazard).flippedVertical })),
-            ...this.box.getChildren().map(b => ({ obj: b as Box, friction: (b as Box).friction, flippedVertical: false })),
-            ...this.punchBox.getChildren().map(p => ({ obj: p as PunchBox, friction: 1, flippedVertical: (p as PunchBox).flippedVertical })),
+        // Switches, spikes and punch boxes can all be ceiling- or side-mounted; boxes only rest
+        // on top via gravity (sideMount stays false so a box beside a platform isn't dragged).
+        const riders: { obj: Switch | Hazard | Box | PunchBox; friction: number; flippedVertical: boolean; sideMount: boolean }[] = [
+            ...this.switch.getChildren().map(s => ({ obj: s as Switch, friction: 1, flippedVertical: (s as Switch).flippedVertical, sideMount: true })),
+            ...this.hazard.getChildren().map(h => ({ obj: h as Hazard, friction: 1, flippedVertical: (h as Hazard).flippedVertical, sideMount: true })),
+            ...this.box.getChildren().map(b => ({ obj: b as Box, friction: (b as Box).friction, flippedVertical: false, sideMount: false })),
+            ...this.punchBox.getChildren().map(p => ({ obj: p as PunchBox, friction: 1, flippedVertical: (p as PunchBox).flippedVertical, sideMount: true })),
         ];
 
-        for (const { obj, friction, flippedVertical } of riders) {
+        for (const { obj, friction, flippedVertical, sideMount } of riders) {
             const rLeft   = obj.x - obj.width / 2;
             const rRight  = obj.x + obj.width / 2;
             const rTop    = obj.y - obj.height / 2;
@@ -813,12 +821,28 @@ export class LevelBuilder {
             for (const p of platforms) {
                 const pTop    = p.y - p.height / 2;
                 const pBottom = p.y + p.height / 2;
+                const pLeft   = p.x - p.width / 2;
+                const pRight  = p.x + p.width / 2;
+
+                // Overlap along the edge shared with each face; used to pick the best-fitting
+                // platform and to reject riders that only touch at a corner.
+                const hOverlap = Math.min(rRight, pRight) - Math.max(rLeft, pLeft);
+                const vOverlap = Math.min(rBottom, pBottom) - Math.max(rTop, pTop);
+
                 // Rider rests on the platform's TOP edge, OR — only when authored upside-down
                 // (vertical flip) to signal intent — hangs from its BOTTOM edge. Small tolerance.
-                const onTop    = Math.abs(rBottom - pTop) <= 2;
-                const onBottom = flippedVertical && Math.abs(rTop - pBottom) <= 2;
-                if (!onTop && !onBottom) continue;
-                const overlap = Math.min(rRight, p.x + p.width / 2) - Math.max(rLeft, p.x - p.width / 2);
+                const onTop    = Math.abs(rBottom - pTop) <= 2 && hOverlap > 0;
+                const onBottom = flippedVertical && Math.abs(rTop - pBottom) <= 2 && hOverlap > 0;
+                // Hazards/switches/punch boxes can also mount flush against a platform's LEFT or
+                // RIGHT face (e.g. a spike whose base rides a horizontally-travelling platform).
+                const onRight  = sideMount && Math.abs(rLeft - pRight) <= 2 && vOverlap > 0;
+                const onLeft   = sideMount && Math.abs(rRight - pLeft) <= 2 && vOverlap > 0;
+
+                let overlap = 0;
+                if (onTop || onBottom)      overlap = hOverlap;
+                else if (onLeft || onRight) overlap = vOverlap;
+                else continue;
+
                 if (overlap > bestOverlap) { bestOverlap = overlap; best = p; }
             }
 

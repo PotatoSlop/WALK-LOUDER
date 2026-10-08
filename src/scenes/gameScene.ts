@@ -27,6 +27,49 @@ const DOOR_UNLOCKED_TOP_GID = 356;  // top piece paired with the unlocked body
 // Camera zoom factor — canvas runs at 960×640, world stays 240×160
 const CAMERA_ZOOM = 4;
 
+// How much of a box's width must rest on solid ground for it to hold instead of tipping into a
+// gap. Set to half a tile (TILE/2) so the rule is center-of-mass: a box more than half off an
+// edge falls, matching how it looks like it should behave. A smaller value (e.g. 2) lets a box
+// perch on a thin lip with most of its body overhanging the void, which reads as "clipping".
+const BOX_LEDGE_TOLERANCE = 4;
+// Extra distance the box is moved PAST the hole's tile boundary when it tips, so it clears the
+// tile with margin. Landing a box exactly on the boundary risks Arcade re-counting a
+// floating-point sliver (body.right > tile.left by an epsilon) as support — a permanent float.
+const BOX_LEDGE_CLEARANCE = 0.5;
+// Probe offset for "the tile just left of x": getTileAtWorldXY(x) covers [x, x+tile), so an edge
+// probe at a right-hand boundary must step back a hair to land in the tile the box overlaps.
+const EPS = 1e-3;
+// The ledge nudge below is a position SNAP (up to ~a tile), which reads as a jump. It only exists
+// to unstick a box that has come to REST perched on a sliver; a box that is moving horizontally
+// (being pushed, or sliding) carries itself off the edge on its own, so snapping it is both
+// unnecessary and jarring. Skip the nudge above this horizontal speed. Sits between "at rest"
+// (drag zeroes sub-~2.4px/s each step) and the slowest push (~10px/s = the mass floor).
+const BOX_LEDGE_MOVING_VEL = 5;
+const BOX_FRICTION_SLIP_TOLERANCE = 0.2;
+// Manual box-shove tuning (see GameScene.pushBoxes / pushSpeedFor / contactTol).
+//
+// Push SPEED vs the run's combined mass is a logarithmic decay that asymptotically floors at a
+// fraction of walk speed, so heavy boxes and long chains stay usable instead of grinding toward 0
+// (the old walkSpeed/mass hyperbola put a mass-20 box at ~5% of walk speed):
+//   speed = walkSpeed · [ MIN_FRACTION + (1 − MIN_FRACTION) / (1 + DECAY·ln(mass)) ]
+// mass 1 ⇒ full walk speed (ln1=0); mass → ∞ ⇒ MIN_FRACTION·walkSpeed. DECAY sets how fast it
+// falls off; MIN_FRACTION is the asymptotic floor. Floor is a FRACTION so it scales with the
+// player's current (volume-driven) walk speed rather than pinning heavy boxes to an absolute px/s.
+const BOX_PUSH_MIN_FRACTION = 0.25; // heavy boxes/chains never drop below 25% of walk speed
+const BOX_PUSH_SPEED_DECAY  = 1;    // ln-decay rate from 100% (mass 1) toward the floor
+
+// Contact/adjacency tolerance (px) scales with the PUSH SPEED, not mass. The tolerance only exists
+// to catch contact across a 120fps step: the faster two edges close, the more they travel between
+// steps, so faster pushes need a hair more slack. Slower pushes (quiet player, and heavy boxes,
+// which move slower via the mass decay above) get TIGHTER, more precise edges — never looser.
+// tol = TOL_MAX · pushSpeed / refWalkSpeed, clamped to [MIN, MAX]. Tiles are 8px, so MAX=2 keeps
+// edge detection within a quarter tile (the old 4px was a 50% overreach).
+const BOX_PUSH_TOL_MAX = 1.5;   // px hard ceiling — ¼ tile at 8px tiles
+const BOX_PUSH_TOL_MIN = 0.1; // px floor so contact is still reliably caught at the slowest pushes
+// Minimum VERTICAL overlap (px) to treat contact as a side shove rather than a rider/underside
+// case. Fixed (not speed-scaled): it's a geometric rider-vs-side discriminator, not a reach.
+const BOX_PUSH_VOVERLAP_MIN = 2;
+
 export class GameScene extends Phaser.Scene {
 
     player: any;
@@ -56,15 +99,11 @@ export class GameScene extends Phaser.Scene {
     private debugKey!: Phaser.Input.Keyboard.Key;
     private playerController!: PlayerController;
 
-    // "Flip" hazard state: when true the screen is colour-inverted and the mic mapping is
-    // reversed (loud = slow/low jump). Lives for one life — cleared on death and on level change.
     private cameraFX!: CameraFXHandle;
-    private flipped: boolean = false;
-    // Counter-invert filter on the interactables layer — cancels the camera-wide invert so
-    // doors/keys/switches/platforms/boxes stay their normal colours while flip is active.
-    private interactableInvert!: Phaser.Filters.ColorMatrix;
+    private flipped: boolean = false; // flip hazard - invert color
+    private interactableInvert!: Phaser.Filters.ColorMatrix; // filter color inversion
 
-    // Previous frame's sustained-sound state — loops toggle only on transitions.
+    // Frame sustained sound state flags
     private platformMoving: boolean = false;
     private magnetPulling: boolean = false;
     private sawTravelling: boolean = false;
@@ -74,13 +113,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     init(data: { levelId?: string }) {
-        this.currentLevelId = data.levelId ?? 'level01';
+        this.currentLevelId = data.levelId ?? 'level27';
         this.transitioning = false;
         this.deathCt = this.game.registry.get('deathCt') ?? 0;
 
-        // Single GameState shared across scene restarts (death/respawn) — persist it in the
-        // registry and reuse. Uses the global game emitter so mode-change listeners survive
-        // restarts. startRun is idempotent, so the clock keeps ticking through respawns.
         this.gameState = this.game.registry.get('gameState') as GameState
             ?? new GameState(this.game.events);
         this.game.registry.set('gameState', this.gameState);
@@ -98,21 +134,14 @@ export class GameScene extends Phaser.Scene {
     create() {
         this.escKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
 
-        // Sound is wired through the persistent global event emitter and the global sound
-        // manager, both of which outlive scene restarts. Build the manager exactly ONCE and
-        // reuse it — creating a second one would double every listener (each sfx would fire
-        // twice). Its listeners never need tearing down because it lives for the whole game.
         if (!this.game.registry.get('soundManager')) {
             this.game.registry.set('soundManager', new SoundManager(this));
         }
-        // Sustained-sound state is per-run — reset so the first move/pull/saw after a
-        // restart re-triggers its loop (the scene instance is reused across restarts).
+        // Reset current state of objects hazards on level create/reset
         this.platformMoving = false;
         this.magnetPulling = false;
         this.sawTravelling = false;
-        // Flip is per-life; the scene instance is reused across restarts, so clear it here.
-        // The camera invert filter is rebuilt fresh (inactive) below by setupCameraFX.
-        this.flipped = false;
+        this.flipped = false; //Inverted colors during "flip" hazard
 
         // Tilemap
         const map = this.make.tilemap({ key: this.currentLevelId });
@@ -120,32 +149,27 @@ export class GameScene extends Phaser.Scene {
         const platformLayer = map.createLayer('Tile Layer 1', tileset!);
         this.platformLayer = platformLayer!;
 
-        // Lock world + camera to tilemap dimensions (screen edge = level edge)
+        // Lock camera and world to map bounds
         this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+
+        // Set world/game state params
         this.physics.world.TILE_BIAS = 8;
-        // Run physics at 120Hz: halves per-step displacement vs the 60fps default, so fast
-        // bodies can't skip past thin platform bodies (Arcade has no continuous collision).
         this.physics.world.setFPS(120);
         this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
         this.cameras.main.setZoom(CAMERA_ZOOM);
 
         this.cameraFX = setupCameraFX(this);
 
+        // Death
         this.events.on('playerDeath', () => {
             if (this.transitioning) return;
             this.transitioning = true;
-            // Call off the flip effect the instant the player dies so the death (particles,
-            // frozen world) reads in the normal, un-inverted colour scheme — not on the later
-            // level reset.
             this.setFlipped(false);
             this.deathCt++;
             this.game.registry.set('deathCt', this.deathCt);
 
-            const color = getSetting('bloodMode')
-                ? 0xff0000
-                : this.player.tintTopLeft ?? 0xffffff;
+            const color = getSetting('bloodMode') ? 0xff0000: this.player.tintTopLeft ?? 0xffffff; // default white if no tint + no blood
 
-            // Freeze and hide player immediately so particles play at death position
             this.player.setVisible(false);
             this.player.Body.setVelocity(0, 0);
             (this.player.Body as Phaser.Physics.Arcade.Body).setEnable(false);
@@ -171,29 +195,20 @@ export class GameScene extends Phaser.Scene {
         this.magnetGroup   = level.groups.magnet;
         this.flipGroup     = level.groups.flip;
 
-        // Give the interactables layer its own colour-invert filter, initially off. When flip
-        // turns on, both this and the camera invert activate — the double negative leaves the
-        // interactable sprites looking normal while everything else on screen goes negative.
+        // Apply filters to game layer (level, hazards, interactables, player)
         level.interactableLayer.enableFilters();
         this.interactableInvert = level.interactableLayer.filters!.internal.addColorMatrix();
         this.interactableInvert.colorMatrix.negative();
         this.interactableInvert.active = false;
 
+        // Construct new player with physics collisions to platform group tagged elements
         this.playerController = new PlayerController(this, this.player, this.platformGroup);
 
-        // Player scene-side wiring (controls hint + fall-out-of-world death)
+        // Player scene-side wiring - control hints
         this.buildControlsHint();
         this.player.Body.onWorldBounds = true;
         this.physics.world.on('worldbounds', (body: Phaser.Physics.Arcade.Body) => {
             if (body.gameObject !== this.player) return;
-            // Only the bottom edge is lethal — every other border is a harmless wall.
-            // Test the body's real position instead of the event's `down` flag: the world
-            // runs a fixed 60fps step, and on frames with multiple substeps only the first
-            // resets collision flags. A stale `blocked.down` (from resting on the ground)
-            // then leaks into later substeps, so a grounded player pinned against a side
-            // wall — e.g. after a punch-box knockback — was misread as "fell out" and killed.
-            // The position check can't go stale: checkWorldBounds clamps body.bottom to the
-            // world bottom on a real bottom-hit, while a side-wall hit leaves it well above.
             if (body.bottom >= this.physics.world.bounds.bottom) this.player.death();
         });
 
@@ -206,12 +221,10 @@ export class GameScene extends Phaser.Scene {
             const box = boxObj as Box;
             const platform = platformObj as MovingPlatform;
 
-            // Check if the box is meant to be slippery
-            // You can also import STICK_FRICTION_THRESHOLD from movingPlatform.ts
-            if (box.friction < 0.2) { 
+            // Friction threshold for slipping off moving platform
+            if (box.friction < BOX_FRICTION_SLIP_TOLERANCE) { 
                 
-                // Phaser's Arcade Physics automatically dragged the resting body.
-                // We cleanly undo that automatic drag right here.
+                // Offset built in Phaser platform sticking with manual displacement -> zero out velocities
                 const deltaX = platform.Body.x - platform.Body.prev.x;
                 const deltaY = platform.Body.y - platform.Body.prev.y;
                 
@@ -222,6 +235,7 @@ export class GameScene extends Phaser.Scene {
         this.physics.add.collider(this.boxGroup, this.boxGroup);
         platformLayer!.setCollision([42]);
 
+        // Sticking to platforms
         const platforms = this.platformGroup.getChildren() as MovingPlatform[];
         for (const p of platforms) {
             for (const other of platforms) {
@@ -230,7 +244,7 @@ export class GameScene extends Phaser.Scene {
                 const pBody = p.Body;
                 const oBody = other.Body;
                 
-                // If 'other' is sitting directly above 'p'
+                // If 'other' is sitting directly above 'p' -> move object with platform
                 if (Math.abs(oBody.bottom - pBody.top) <= 2 && 
                     oBody.right > pBody.left + 2 && 
                     oBody.left < pBody.right - 2) {
@@ -244,27 +258,19 @@ export class GameScene extends Phaser.Scene {
 
         for (const h of this.hazardGroup.getChildren()) {
             this.physics.add.overlap(this.player, h, (p, hazard) => {
-                // A box the player is standing on shields them: the box top always sits above
-                // the (shrunk) spike tips, so any player↔spike overlap while riding that box is
-                // Arcade fast-fall penetration, not real contact. Suppress the kill in that case.
+                // Overlap fires every frame of contact; once a death is queued the level is mid-
+                // transition (restart deferred 500ms), so bail to avoid re-emitting the spike sfx
+                // ~30×/death and re-triggering death. Mirrors the door handler's guard.
+                if (this.transitioning) return;
+                // Manual override of player death collisions when riding moving platform/box
                 if (this.playerShieldedFromSpikeByBox((hazard as Hazard).body as Phaser.Physics.Arcade.Body)) return;
-                // Manually trigger the spike sound!
                 this.game.events.emit('sfx-trigger-spike');
                 (p as Player).death('spike');
             });
         }
 
-        // The magnet kills on contact with its own tile — a plain overlap (disabled magnets have
-        // their body turned off, so this won't fire while unpowered).
+        // Disable magnet body = disable magnet kill
         this.physics.add.overlap(this.player, this.magnetGroup, (p) => (p as Player).death());
-
-        // Flip is a collectible, but — like keys — it is collected via a plain AABB test in
-        // update() (see flipGroup loop), NOT a physics overlap. A physics overlap sets the
-        // player's touching flags on contact (even overlap-only), which would spuriously mark
-        // the player grounded and hand out an extra jump when they run onto a flip tile.
-
-        // Keys are collected via a plain AABB test in update() (see itemGroup loop) — no
-        // physics overlap, which would corrupt the player's ground/jump state on contact.
 
         for (const d of this.doorGroup.getChildren()) {
             this.physics.add.overlap(this.player, d, (p, door) => {
@@ -430,6 +436,7 @@ export class GameScene extends Phaser.Scene {
 
         this.playerController.update({ vol, jumpVol, cursors: this.cursors, delta });
         this.carryPlayerOnBox();
+        this.pushBoxes(vol);
 
         for (const item of [...this.itemGroup.getChildren()]) {
             const key = item as Key;
@@ -470,6 +477,7 @@ export class GameScene extends Phaser.Scene {
         this.hazardGroup.getChildren().forEach((h: Phaser.GameObjects.GameObject) => (h as Hazard).update());
         this.platformGroup.getChildren().forEach((p: Phaser.GameObjects.GameObject) => (p as MovingPlatform).update(delta));
         this.boxGroup.getChildren().forEach((b: Phaser.GameObjects.GameObject) => (b as Box).update());
+        this.applyLedgeTolerance();
         const boxes = this.boxGroup.getChildren() as Box[];
         this.punchBoxGroup.getChildren().forEach((go: Phaser.GameObjects.GameObject) => {
             (go as PunchBox).update(this.player, boxes);
@@ -510,20 +518,199 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
+    // True when a collidable tile occupies the given WORLD point.
+    private tileSolidAt(worldX: number, worldY: number): boolean {
+        const t = this.platformLayer.getTileAtWorldXY(worldX, worldY);
+        return !!(t && t.collides);
+    }
+
+    // Push-block ledge tolerance. Runs after the physics step: a box resting on a floor tile by
+    // only a sub-pixel sliver (Arcade counts ANY overlap as support, so a box drifts to rest a
+    // fraction of a pixel onto a ledge and floats on a corner) is nudged horizontally off that
+    // sliver into the hole it's mostly over, so it falls the way it visually should. The box
+    // body is never resized — standable/pushable space is unchanged; only a box that is already
+    // tipping gets moved, and only into the gap it's overhanging.
+    private applyLedgeTolerance() {
+        const T = BOX_LEDGE_TOLERANCE;
+        for (const b of this.boxGroup.getChildren()) {
+            const box = b as Box;
+            if (!box.active) continue;
+            const bb = box.Body;
+            // Only when resting on the tilemap (blocked.down = tile contact, not a platform/box)
+            // and not being launched upward.
+            if (!bb.blocked.down || bb.velocity.y < -1) continue;
+            // Only for boxes at rest: a box moving horizontally (pushed/sliding) leaves the ledge
+            // on its own momentum, so the snap-nudge would just be a visible jump. Let it slide.
+            if (Math.abs(bb.velocity.x) > BOX_LEDGE_MOVING_VEL) continue;
+
+            const y = bb.bottom + 1;
+            // Enough support if solid ground reaches at least T px in from either edge. A tile
+            // lookup at world x covers [x, x+tile), so the left-side probe steps back by EPS to
+            // ask "is [left, left+T) solid" — otherwise exactly-T support would hold when hanging
+            // off a left edge but tip when hanging off a right one.
+            if (this.tileSolidAt(bb.left + T - EPS, y) || this.tileSolidAt(bb.right - T, y)) continue;
+
+            // Sliver: figure out which edge still clips a tile. Probe AT the edges (not inset):
+            // Arcade counts any positive overlap as support, so a sliver thinner than an inset
+            // probe would read as "neither clips" and float forever. Skip the ambiguous cases
+            // (bridging a gap with both corners solid, or already fully unsupported with neither).
+            const leftTile = this.platformLayer.getTileAtWorldXY(bb.left, y);
+            const rightTile = this.platformLayer.getTileAtWorldXY(bb.right - EPS, y);
+            const leftClips = !!(leftTile && leftTile.collides);
+            const rightClips = !!(rightTile && rightTile.collides);
+            if (leftClips === rightClips) continue;
+
+            // Commit the box off the sliver by moving the clipping edge just past the hole's tile
+            // boundary (plus BOX_LEDGE_CLEARANCE). Assigning the ABSOLUTE grid position is
+            // idempotent: a box punched back up onto the same sliver resolves to the identical
+            // position each time, instead of the old relative `+= (T+1)` shove that walked the box
+            // sideways on every bounce (the reported "shifts BACK and repeats" graphical jitter).
+            //
+            // The clearance must not push the FAR edge into the hole's opposite wall: a box as
+            // wide as the hole (the common 8px box / 1-tile hole) would clip that wall by C and
+            // land on its corner, then get snapped back — ping-ponging forever. So fall back to
+            // an exact fit (integer boundaries, no FP sliver), and skip if even that clips (the
+            // hole is narrower than the box, so it bridges rather than falls).
+            const edge = leftClips ? leftTile!.getRight() : rightTile!.getLeft();
+            const dir = leftClips ? 1 : -1;
+            const xFor = (c: number) => leftClips ? edge + c : edge - c - bb.width;
+            const fits = (x: number) => leftClips
+                ? !this.tileSolidAt(x + bb.width - EPS, y) && !this.tileSolidAt(x + bb.width - EPS, bb.bottom - 1)
+                : !this.tileSolidAt(x, y) && !this.tileSolidAt(x, bb.bottom - 1);
+            let nx = xFor(BOX_LEDGE_CLEARANCE);
+            if (!fits(nx)) nx = xFor(0);
+            if (!fits(nx) || (nx - bb.x) * dir <= 0) continue;
+            bb.x = nx;
+            bb.updateCenter();
+            // Let it fall this frame rather than waiting for the next contact test.
+            bb.blocked.down = false;
+            if (bb.velocity.y < 0) bb.velocity.y = 0;
+            // Sync the visible sprite to the corrected body THIS frame — Box.update() (which moves
+            // the sprite) already ran, and Arcade won't re-sync the transform from the body until
+            // the next step, so otherwise the sprite lags the correction by a frame.
+            box.syncDisplayFromBody();
+        }
+    }
+
+    // Manual horizontal shove — the counterpart to carryPlayerOnBox for the SIDE contact. Boxes
+    // are permanently non-pushable (see Box constructor), so Arcade never lets the player transfer
+    // momentum into a box: walking into one just stops the player dead. To keep boxes movable we
+    // drive them ourselves here, which also means NO two-body velocity exchange ever runs — the
+    // whole catapult / phase-through class is gone, not just the cases a pushable-toggle guard
+    // could catch.
+    //
+    // Model: when the player presses into a box beside them, set that box's horizontal velocity
+    // (and the player's, so they stay in contact instead of being clamped to ~0 by the box wall).
+    // The box's own colliders (tilemap, platforms, other boxes, world edge via ledge tolerance)
+    // stop it against obstacles for free, because we drive velocity — not position — and let the
+    // next physics step resolve it. Speed follows a logarithmic decay in the run's combined mass
+    // that floors at BOX_PUSH_MIN_FRACTION of walk speed (see pushSpeedFor), so a lone mass-1 box
+    // pushes at full walk speed while heavy boxes and long chains stay usable rather than crawling
+    // to ~0. Runs after the step (in update); the velocity takes effect next frame, like the carry.
+    private pushBoxes(vol: number) {
+        if (this.player.inKnockback) return; // don't fight a punch knockback
+        const pressingRight = this.cursors.right.isDown && !this.cursors.left.isDown;
+        const pressingLeft  = this.cursors.left.isDown  && !this.cursors.right.isDown;
+        if (!pressingRight && !pressingLeft) return;
+        const dir = pressingRight ? 1 : -1;
+
+        const pb = this.player.Body;
+        const boxes = this.boxGroup.getChildren() as Box[];
+
+        // Matches Player.moveLeft/Right's speed for the current volume; also sizes the contact
+        // tolerance (per box, via its own push speed), so compute it before contact detection.
+        const walkSpeed = this.player.BASE_MOVEMENT_SPEED
+            + vol * this.player.MAX_SPEED_MULT * this.player.BASE_MOVEMENT_SPEED;
+
+        const front = this.frontBox(pb, dir, boxes, walkSpeed);
+        if (!front) return;
+
+        // The whole contiguous run of boxes ahead of `front` moves together; combined mass sets
+        // the speed so pushing more (or heavier) boxes is slower (logarithmically, with a floor).
+        const chain = this.boxChain(front, dir, boxes, walkSpeed);
+        let totalMass = 0;
+        for (const b of chain) totalMass += b.Body.mass;
+
+        const pushV = dir * this.pushSpeedFor(totalMass, walkSpeed);
+
+        for (const b of chain) b.Body.velocity.x = pushV;
+        pb.velocity.x = pushV;
+    }
+
+    // Push speed for a run of combined `totalMass` at the player's current `walkSpeed`: a
+    // logarithmic decay from full speed (mass 1) asymptotically down to BOX_PUSH_MIN_FRACTION of
+    // walk speed. See the constants block for the formula and rationale.
+    private pushSpeedFor(totalMass: number, walkSpeed: number): number {
+        const decay = 1 / (1 + BOX_PUSH_SPEED_DECAY * Math.log(Math.max(1, totalMass)));
+        return walkSpeed * (BOX_PUSH_MIN_FRACTION + (1 - BOX_PUSH_MIN_FRACTION) * decay);
+    }
+
+    // Contact/adjacency gap tolerance for a box, proportional to how fast it would be pushed:
+    // tol = TOL_MAX · pushSpeed(mass) / refWalkSpeed, clamped to [MIN, MAX]. Faster pushes (light
+    // box and/or louder player) get a hair more slack to catch contact across a step; slower pushes
+    // (heavy box, quiet player) get tighter edges. refWalkSpeed is the player's max walk speed
+    // (mass-1, full volume) so a light box at full tilt maps to exactly TOL_MAX.
+    private contactTol(mass: number, walkSpeed: number): number {
+        const refWalkSpeed = this.player.BASE_MOVEMENT_SPEED * (1 + this.player.MAX_SPEED_MULT);
+        const tol = BOX_PUSH_TOL_MAX * (this.pushSpeedFor(mass, walkSpeed) / refWalkSpeed);
+        return Math.min(BOX_PUSH_TOL_MAX, Math.max(BOX_PUSH_TOL_MIN, tol));
+    }
+
+    // The box the player is pressing into on `dir`: horizontally adjacent on that side and sharing
+    // enough VERTICAL span to be a genuine side contact (a rider on top or a strike from below
+    // overlaps by ~0 and is excluded, so it stays a carry/one-sided case, not a shove).
+    private frontBox(pb: Phaser.Physics.Arcade.Body, dir: number, boxes: Box[], walkSpeed: number): Box | null {
+        let best: Box | null = null;
+        let bestGap = Infinity;
+        for (const box of boxes) {
+            if (!box.active) continue;
+            const bb = box.Body;
+            const vOverlap = Math.min(pb.bottom, bb.bottom) - Math.max(pb.top, bb.top);
+            if (vOverlap <= BOX_PUSH_VOVERLAP_MIN) continue; // rider/underside/no-overlap ⇒ not a side shove
+            const tol = this.contactTol(bb.mass, walkSpeed); // slower-pushed (heavier) boxes get tighter edges
+            const gap = dir > 0 ? bb.left - pb.right : pb.left - bb.right;
+            if (gap < -tol || gap > tol) continue; // not touching on the press side
+            if (Math.abs(gap) < bestGap) { bestGap = Math.abs(gap); best = box; }
+        }
+        return best;
+    }
+
+    // Walk the contiguous run of boxes ahead of `front` in `dir` (each adjacent to and vertically
+    // overlapping the previous), so a shove drives the whole line. Visited-guarded against cycles.
+    private boxChain(front: Box, dir: number, boxes: Box[], walkSpeed: number): Box[] {
+        const chain: Box[] = [front];
+        const seen = new Set<Box>([front]);
+        let current = front;
+        for (;;) {
+            const cb = current.Body;
+            const next = boxes.find(b => {
+                if (seen.has(b) || !b.active) return false;
+                const nb = b.Body;
+                if (nb.bottom <= cb.top || nb.top >= cb.bottom) return false; // no vertical overlap
+                const tol = this.contactTol(nb.mass, walkSpeed); // linked box's push speed sets the reach
+                const gap = dir > 0 ? nb.left - cb.right : cb.left - nb.right;
+                return gap >= -tol && gap <= tol;
+            });
+            if (!next) break;
+            chain.push(next);
+            seen.add(next);
+            current = next;
+        }
+        return chain;
+    }
+
     // Carry the player riding on top of a box. Boxes are movable dynamic bodies, so Arcade
-    // never transfers their motion to a rider the way an immovable MovingPlatform does.
+    // never transfers their HORIZONTAL motion to a rider on top. The VERTICAL carry is handled for
+    // free because boxes are permanently non-pushable (see Box constructor): the one-sided
+    // collision conforms the rider to the box's vertical velocity — we must NOT velocity-match the
+    // vertical axis by hand, because the contact normal IS vertical, so any manual set feeds
+    // straight back through the collision.
     //
-    // We ride by MATCHING the box's velocity, not by adding its per-frame displacement. An
-    // additive positional carry double-counts whenever the player already has world velocity
-    // of its own (punch knockback that hit them along with the box, or a landing mismatch):
-    // the player moves with the box under its own velocity AND gets the box delta added on
-    // top, drifting off the fast-moving box's edge and falling into the hazards it was
-    // carrying them over. Matching velocity keeps them locked to the box at any speed and
-    // naturally overrides residual/knockback velocity. When actively walking, the walk speed
-    // rides on top of the box velocity so the player can still move across it.
-    //
-    // Runs after the physics step; the velocity we set takes effect next frame. Platforms are
-    // excluded — their immovable friction already carries riders.
+    // Here we only handle the horizontal axis, which is perpendicular to the contact and so
+    // never feeds back into the box: match the box's velocity so += adds walk-on-top when
+    // walking and locks exactly to the box otherwise. Runs after the physics step; the velocity
+    // takes effect next frame. Platforms are excluded — their immovable friction already carries
+    // riders.
     private carryPlayerOnBox() {
         const pb = this.player.Body;
         if (!(pb.blocked.down || pb.touching.down)) return;
@@ -536,14 +723,6 @@ export class GameScene extends Phaser.Scene {
             if (pb.right <= bb.left || pb.left >= bb.right) continue;
             if (Math.abs(bb.top - pb.bottom) > 4) continue;
 
-            // Carry up with a rising box (positionally, to avoid a 1-frame gap); let a
-            // descending box fall away rather than yanking the player down through it.
-            const dy = bb.y - bb.prev.y;
-            if (dy < 0) { pb.position.y += dy; pb.updateCenter(); }
-
-            // Horizontal: ride the box by matching its velocity. The controller already set
-            // this frame's velocity from input, so += adds walk-on-top when walking; when not
-            // walking we lock exactly to the box (overriding any residual/knockback velocity).
             const walking = this.cursors.left.isDown || this.cursors.right.isDown;
             pb.velocity.x = (walking ? pb.velocity.x : 0) + bb.velocity.x;
             break;
